@@ -46,6 +46,7 @@ else
     "$ROOT/docs/tutorial/D-interview-junior.md"
     "$ROOT/docs/tutorial/E-interview-middle.md"
     "$ROOT/docs/tutorial/F-interview-senior.md"
+    "$ROOT/docs/tutorial/G-cpp-comparison.md"
   )
 fi
 

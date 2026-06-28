@@ -47,6 +47,20 @@ for f in "$CODE"/*.m; do
   compile "$f" -fobjc-arc -framework Foundation
 done
 
+# Чистый C++ (приложение G «Objective-C глазами C++-разработчика»)
+for f in "$CODE"/*.cpp; do
+  clang++ -std=c++17 -Wall -Wextra -O2 "$f" -o "$TMP/$(basename "$f" .cpp)" 2> "$TMP/$(basename "$f").log" \
+    && { [ -s "$TMP/$(basename "$f").log" ] && { echo "WARN  $(basename "$f")"; cat "$TMP/$(basename "$f").log"; fail=1; } || echo "OK    $(basename "$f")"; } \
+    || { echo "FAIL  $(basename "$f")"; cat "$TMP/$(basename "$f").log"; fail=1; }
+done
+
+# Objective-C++ (.mm) — смешанный код, ARC + Foundation, компилятор C++
+for f in "$CODE"/*.mm; do
+  clang++ -ObjC++ -fobjc-arc -framework Foundation -Wall -Wextra -O2 "$f" -o "$TMP/$(basename "$f" .mm)" 2> "$TMP/$(basename "$f").log" \
+    && { [ -s "$TMP/$(basename "$f").log" ] && { echo "WARN  $(basename "$f")"; cat "$TMP/$(basename "$f").log"; fail=1; } || echo "OK    $(basename "$f")"; } \
+    || { echo "FAIL  $(basename "$f")"; cat "$TMP/$(basename "$f").log"; fail=1; }
+done
+
 if [ "$fail" -ne 0 ]; then
   echo "--- есть проблемы ---"
   exit 1
