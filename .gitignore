@@ -1,0 +1,17 @@
+# Сборочный мусор
+*.aux
+*.log
+*.toc
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Скомпилированные бинарники примеров (исходники .m/.c — в git)
+code/bin/
+a.out
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
