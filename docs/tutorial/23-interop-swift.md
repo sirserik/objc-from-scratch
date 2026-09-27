@@ -11,8 +11,10 @@
 Xcode мы тут собирать не будем. Уговор такой: Objective-C-сторону мы пишем
 по-настоящему, компилируем и запускаем (вывод в книге — реальный), а
 Swift-куски показываем рядом как **иллюстрацию** — «вот как этот же класс
-выглядит в Swift». Их мы не компилируем, и в `code/` они не лежат. Зато ты
-увидишь главное: какие аннотации в objc-коде делают Swift-сторону
+выглядит в Swift». В `code/` они не лежат. Но это не догадки: при
+подготовке главы мы скормили наши objc-заголовки настоящему компилятору
+Swift и сверили каждую показанную подпись с тем, что он реально видит.
+Главное ты увидишь: какие аннотации в objc-коде делают Swift-сторону
 аккуратной.
 
 ## Что мы сделаем
@@ -198,7 +200,7 @@ OrderViewModel *vm = [[OrderViewModel alloc] init];
    NSArray<Product *> *            [Product]
    NSDictionary<NSString *, T *>   [String: T]
    NSSet<T *> *                    Set<T>
-   NSInteger / NSUInteger          Int / UInt
+   NSInteger / NSUInteger          Int / UInt (см. ниже)
    CGFloat / double                CGFloat / Double
    BOOL                            Bool
    nullable NSString *             String?       (опционал)
@@ -206,6 +208,12 @@ OrderViewModel *vm = [[OrderViewModel alloc] init];
    void (^)(NSString *)            (String) -> Void   (замыкание)
    - (...)error:(NSError **)       throws
 ```
+
+Строка про `NSUInteger` с подвохом. В системных фреймворках Apple
+`NSUInteger` приезжает в Swift как `Int` (поэтому у массивов `count: Int`),
+а в твоих собственных заголовках — как `UInt`. Мы проверили это
+компилятором Swift на классе из этой главы: `itemAtIndex:(NSUInteger)`
+пришёл как `item(at index: UInt)`.
 
 **`NSString` ↔ `String`.** `NSString *` в параметре или возврате — это в
 Swift `String`. Мост конвертирует между двумя представлениями сам, руками
@@ -275,7 +283,8 @@ NS_ASSUME_NONNULL_BEGIN   // всё ниже nonnull, кроме явного nu
 @property (nonatomic, copy, nullable) NSString *promoCode;
 
 // initWithOwner: -> в Swift init(owner:)
-- (instancetype)initWithOwner:(NSString *)ownerName NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithOwner:(NSString *)ownerName
+    NS_DESIGNATED_INITIALIZER;
 
 // запрещаем пустой init: в Swift его не будет видно
 - (instancetype)init NS_UNAVAILABLE;
@@ -286,8 +295,8 @@ NS_ASSUME_NONNULL_BEGIN   // всё ниже nonnull, кроме явного nu
 - (nullable NSString *)itemAtIndex:(NSUInteger)index;
 
 // блок; NS_NOESCAPE -> не «убегающий»
-- (void)enumerateItemsUsingBlock:(void (NS_NOESCAPE ^)(NSString *item,
-                                                       NSUInteger index))block;
+- (void)enumerateItemsUsingBlock:
+    (void (NS_NOESCAPE ^)(NSString *item, NSUInteger index))block;
 
 // error: последним -> в Swift throws
 - (nullable NSNumber *)checkoutWithPricePerItem:(double)price
@@ -332,7 +341,7 @@ class ShoppingCart: NSObject {
 
 ```swift
 let cart = ShoppingCart(owner: "Алия")   // есть
-let bad  = ShoppingCart()                // ошибка компиляции: init недоступен
+let bad  = ShoppingCart()                // error: 'init()' is unavailable
 ```
 
 > **Отличие от Си.** В Си «создание» — это `malloc` плюс ручное
@@ -344,8 +353,10 @@ let bad  = ShoppingCart()                // ошибка компиляции: i
 
 `NS_NOESCAPE` помечает блок как **не убегающий**: он отработает прямо
 внутри метода и не сохранится где-то на потом. Для Swift это важно: не
-убегающее замыкание не требует пометки `@escaping`, и внутри него можно
-писать `self.foo` без явного захвата `self`. В Swift:
+убегающее замыкание приезжает без пометки `@escaping`, и внутри него можно
+обращаться к свойствам и методам своего класса без явного `self.`. Без
+`NS_NOESCAPE` тот же параметр пришёл бы в Swift как
+`@escaping (String, UInt) -> Void`. В Swift:
 
 ```swift
 cart.enumerateItems { item, index in     // без @escaping
@@ -362,7 +373,8 @@ cart.enumerateItems { item, index in     // без @escaping
 
 ```swift
 do {
-    let total = try cart.checkout(pricePerItem: 1500)   // NSNumber, не опционал
+    // NSNumber, не опционал
+    let total = try cart.checkout(withPricePerItem: 1500)
     print("К оплате: \(total) ₸")
 } catch {
     print("Ошибка checkout: \(error.localizedDescription)")
@@ -370,8 +382,10 @@ do {
 ```
 
 Имя метода тоже причесалось: хвост `error:` Swift убирает (он стал
-`throws`), а `checkoutWithPricePerItem:` превратился в
-`checkout(pricePerItem:)`.
+`throws`), а `checkoutWithPricePerItem:` Swift разрезал по предлогу
+`With`: получилось `checkout(withPricePerItem:)`. Если хочется короче,
+`checkout(pricePerItem:)`, — это задаётся руками через `NS_SWIFT_NAME`,
+о нём чуть ниже.
 
 ## Запускаем objc-сторону
 
@@ -418,11 +432,11 @@ clang -fobjc-arc -framework Foundation code/23-bridgeable.m -o cart
 @property (nonatomic, readonly) double green;
 @property (nonatomic, readonly) double blue;
 
-// без аннотации Swift увидел бы color(red:green:blue:) — фабричный метод.
-// с NS_SWIFT_NAME он становится обычным инициализатором.
-+ (instancetype)colorWithRed:(double)red
-                       green:(double)green
-                        blue:(double)blue
+// без аннотации Swift увидел бы фабрику rgb(withRed:green:blue:),
+// с NS_SWIFT_NAME она становится обычным инициализатором
++ (instancetype)rgbWithRed:(double)red
+                     green:(double)green
+                      blue:(double)blue
     NS_SWIFT_NAME(init(red:green:blue:));
 
 // длинное имя ужимаем до hexString()
@@ -431,15 +445,26 @@ clang -fobjc-arc -framework Foundation code/23-bridgeable.m -o cart
 ```
 
 `NS_SWIFT_NAME(...)` принимает Swift-подпись метода. Для фабричного метода
-`colorWithRed:green:blue:` мы просим Swift показать его как **инициализатор**
+`rgbWithRed:green:blue:` мы просим Swift показать его как **инициализатор**
 `init(red:green:blue:)` — так в Swift привычнее создавать объекты. Для
 метода `hexStringRepresentation` просто даём короткое имя `hexString()`
 (скобки означают «это метод»).
 
+Любопытная деталь, которую мы поймали на проверке. Сначала фабрика
+называлась `colorWithRed:green:blue:` — и Swift сам, без всякого
+`NS_SWIFT_NAME`, показал её как `init(red:green:blue:)`. Правило такое:
+если имя фабрики начинается с последнего слова имени класса (`color…` у
+`PaletteColor`), Swift считает её инициализатором. Именно так
+`+[UIColor colorWithRed:green:blue:alpha:]` превращается в
+`UIColor(red:green:blue:alpha:)`. Для имени `rgbWithRed:…` правило не
+срабатывает, и тут `NS_SWIFT_NAME` уже по-настоящему нужен.
+
 ```swift
 // Swift-сторона (иллюстрация)
-let lime = PaletteColor(red: 0.6, green: 0.9, blue: 0.2)  // вместо color(red:...)
-let hex  = lime.hexString()                                // вместо hexStringRepresentation()
+// вместо PaletteColor.rgb(withRed:green:blue:)
+let lime = PaletteColor(red: 0.6, green: 0.9, blue: 0.2)
+// вместо hexStringRepresentation()
+let hex  = lime.hexString()
 ```
 
 `NS_SWIFT_NAME` работает не только на методах — им переименовывают классы,
@@ -452,13 +477,16 @@ let hex  = lime.hexString()                                // вместо hexSt
 @interface ConfigLoader : NSObject
 
 // error: последним -> в Swift throwing: try loader.load(from: text)
-- (nullable NSDictionary<NSString *, NSString *> *)loadFromString:(NSString *)text
-                                                            error:(NSError **)error
+- (nullable NSDictionary<NSString *, NSString *> *)
+    loadFromString:(NSString *)text
+             error:(NSError **)error
     NS_SWIFT_NAME(load(from:));
 
-// тоже принимает error:, но BOOL здесь — настоящий результат, а не «успех».
-// NS_SWIFT_NOTHROW оставляет метод обычным, возвращающим Bool.
-- (BOOL)isValidConfig:(NSString *)text error:(NSError **)error NS_SWIFT_NOTHROW;
+// тоже принимает error:, но BOOL здесь — настоящий результат,
+// а не «успех». NS_SWIFT_NOTHROW оставляет метод обычным,
+// возвращающим Bool.
+- (BOOL)isValidConfig:(NSString *)text
+                error:(NSError **)error NS_SWIFT_NOTHROW;
 @end
 ```
 
@@ -472,8 +500,10 @@ let hex  = lime.hexString()                                // вместо hexSt
 
 ```swift
 // Swift-сторона (иллюстрация)
-let cfg = try loader.load(from: "host=localhost;port=5432")  // throwing
-let ok  = loader.isValidConfig("a=b", error: nil)            // Bool, не throws
+// throwing, результат [String : String]
+let cfg = try loader.load(from: "host=localhost;port=5432")
+// Bool, не throws
+let ok  = loader.isValidConfig("a=b", error: nil)
 ```
 
 Рядом с этими тремя (`NS_SWIFT_NAME`, `NS_NOESCAPE`, `NS_SWIFT_NOTHROW`)
@@ -497,8 +527,9 @@ clang -fobjc-arc -framework Foundation code/23-annotations.m -o annot
 2026-06-28 12:41:48.573 annot[63746:1281768] Конфиг валиден: да
 ```
 
-Объектная логика та же, что и без аннотаций: при сборке objc макросы
-вроде `NS_SWIFT_NAME` компилятор просто игнорирует. Их единственная работа
+Объектная логика та же, что и без аннотаций: макросы вроде
+`NS_SWIFT_NAME` разворачиваются в атрибуты (`__attribute__((swift_name))`),
+которые на машинный код objc-программы никак не влияют. Их единственная работа
 — подсказать **Swift-стороне**, как назвать и подать API. Поэтому вывод
 обычный, а вся польза проявилась бы в соседнем Swift-файле.
 
@@ -506,11 +537,12 @@ clang -fobjc-arc -framework Foundation code/23-annotations.m -o annot
 
 Мост хорош, но не всесилен — несколько мест, где он буксует.
 
-**Множественное наследование протоколов в одном имени.** Objective-C
-спокойно объявляет `id<Drawable, Serializable>` — объект, реализующий два
-протокола сразу. В Swift это `Drawable & Serializable`, и обычно
-переезжает нормально, но сложные `id<...>`-сигнатуры мост иногда упрощает
-— проверяй, как именно приехал тип.
+**Композиция протоколов.** Objective-C спокойно объявляет
+`id<Drawable, Serializable>` — объект, реализующий два протокола сразу.
+В Swift это `any Drawable & Serializable`, и такой простой случай
+переезжает нормально (мы проверили). Но сложные сигнатуры — класс плюс
+протоколы, протоколы внутри блоков и коллекций — стоит проверять: как
+именно приехал тип.
 
 **Перегрузка по типам аргументов.** В Objective-C методы различаются
 полным именем с двоеточиями, «перегрузки» по типам как в Swift нет.
@@ -574,11 +606,21 @@ Objective-C File`, согласиться на bridging header, вписать �
 ## Проверяем
 
 Файлы главы — `code/23-bridgeable.m` и `code/23-annotations.m`. Оба —
-настоящая objc-сторона моста; собираются обычной командой
-`clang -fobjc-arc -framework Foundation code/23-*.m -o ...` и запускаются.
+настоящая objc-сторона моста. Каждый собирается отдельно, обычной
+командой (у каждого свой `main`, поэтому вместе в одну программу их не
+собрать):
+
+```text
+clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
+      code/23-bridgeable.m -o cart && ./cart
+clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
+      code/23-annotations.m -o annot && ./annot
+```
+
 Ожидаемый вывод обоих показан выше (дата и числа в скобках будут свои).
-Swift-блоки в главе — иллюстративные: их собирать нечем, и в `code/` они
-не лежат. Но именно ради них мы и расставляли все эти аннотации.
+Swift-блоки в главе — иллюстрации: в `code/` их нет, потому что для них
+нужен настоящий Swift-модуль, а не одна команда `clang`. Но именно ради
+них мы и расставляли все эти аннотации.
 
 ## Частые ошибки
 
@@ -605,8 +647,8 @@ Swift-блоки в главе — иллюстративные: их собир
 1. Добавь в `ShoppingCart` свойство `nullable NSString *giftMessage` и
    метод `- (void)clear;`. Напиши рядом (в комментарии) иллюстративный
    Swift-блок: как эти члены выглядели бы в Swift.
-2. В `PaletteColor` добавь метод `- (PaletteColor *)blendedWith:(PaletteColor *)other;`
-   и подбери ему красивое Swift-имя через `NS_SWIFT_NAME` (например,
+2. В `PaletteColor` добавь метод
+   `- (PaletteColor *)blendedWith:(PaletteColor *)other;` и подбери ему красивое Swift-имя через `NS_SWIFT_NAME` (например,
    `blended(with:)`). Скомпилируй objc-сторону.
 3. Сделай метод `- (nullable NSData *)exportConfig:(NSError **)error;` и
    объясни в комментарии, почему в Swift он станет throwing и почему
@@ -633,18 +675,25 @@ Swift виден из Objective-C через автогенерируемый `-
 
 На этом основная часть книги завершается: ты прошёл путь от первой строки
 на Си до того, как объект во время выполнения находит метод, и до стыка
-двух языков Apple. В приложениях ждут дерево классов Foundation и
-шпаргалка по синтаксису — возвращайся к ним за справкой.
+двух языков Apple. В главе 24 подведём итог и наметим, куда идти дальше.
+А в приложениях ждут дерево классов Foundation, шпаргалка по синтаксису и
+подготовка к собеседованиям — возвращайся к ним за справкой.
 
 ## Документация Apple
 
-- Importing Objective-C into Swift — developer.apple.com →
-  «Importing Objective-C into Swift» (bridging header, module map).
-- Importing Swift into Objective-C — developer.apple.com →
-  «Importing Swift into Objective-C» (`-Swift.h`, `@objc`, `@objcMembers`).
-- Migrating Your Objective-C Code to Swift — developer.apple.com →
-  руководство по постепенному переносу кода.
-- Cocoa Design Patterns — developer.apple.com → «Programming with
-  Objective-C» → Cocoa-паттерны (инициализаторы, делегаты, ошибки).
-- NS_SWIFT_NAME и группа макросов — developer.apple.com → «Customizing
-  Your Objective-C APIs» / справочник по `swift_name` и nullability.
+- Importing Objective-C into Swift (bridging header, фреймворки) —
+  developer.apple.com/documentation/swift/importing-objective-c-into-swift
+- Importing Swift into Objective-C (`-Swift.h`, `@objc`) —
+  developer.apple.com/documentation/swift/importing-swift-into-objective-c
+- Migrating Your Objective-C Code to Swift (постепенный перенос кода) —
+  developer.apple.com/documentation/swift/migrating-your-objective-c-code-to-swift
+- Designating Nullability in Objective-C APIs —
+  developer.apple.com/documentation/swift/designating-nullability-in-objective-c-apis
+- Renaming Objective-C APIs for Swift (`NS_SWIFT_NAME`) —
+  developer.apple.com/documentation/swift/renaming-objective-c-apis-for-swift
+- About Imported Cocoa Error Parameters (`NSError **` → `throws`,
+  `NS_SWIFT_NOTHROW`) —
+  developer.apple.com/documentation/swift/about-imported-cocoa-error-parameters
+- Objective-C and C Code Customization (весь набор макросов: nullability,
+  `NS_ENUM`, `NS_REFINED_FOR_SWIFT`, `NS_SWIFT_UNAVAILABLE` и др.) —
+  developer.apple.com/documentation/swift/objective-c-and-c-code-customization

@@ -12,7 +12,7 @@
 словарей в файл» — и он сам решает, как разложить его по байтам, и сам
 соберёт обратно.
 
-В этой главе разберём четыре слоя работы с диском: управление файлами
+Разберём четыре слоя работы с диском: управление файлами
 (`NSFileManager`), чтение/запись строк и данных, сериализацию коллекций
 (plist и JSON) и архивацию своих объектов (`NSSecureCoding`). В конце
 построим список задач, сохраним его в JSON-файл и поднимем назад, а потом
@@ -59,16 +59,20 @@ NSFileManager *fm = [NSFileManager defaultManager];
 
 ### Куда вообще можно писать
 
-Программе нельзя писать куда попало — система разрешает только в
-определённые папки. Две, которые нужны чаще всего:
+Приложению для iPhone или из Mac App Store нельзя писать куда попало:
+оно живёт в песочнице, и система разрешает только определённые папки.
+Наша консольная программа песочницы не имеет, но хорошая привычка одна
+на всех — спрашивать нужную папку у системы. Две, которые нужны чаще
+всего:
 
 ```objc
 NSString *tmp = NSTemporaryDirectory();
 ```
 
 `NSTemporaryDirectory()` — это **функция** (не метод!), возвращает путь к
-временной папке, своей для каждого запуска. Туда можно свободно писать
-черновики; система вправе их подчистить, когда захочет. Для учебных
+временной папке текущего пользователя (у приложения в песочнице — своей
+для этого приложения). Туда можно свободно писать черновики; система
+вправе их подчистить, когда захочет, поэтому ничего ценного там не храни. Для учебных
 примеров это идеальное место: намусорил — не страшно.
 
 Для данных, которые должны жить долго, есть папка **Documents**:
@@ -101,9 +105,9 @@ NSURL *docsURL = [fm URLForDirectory:NSDocumentDirectory
 папки и строк-путей.
 
 > **Отличие от Си.** В Си ты просто пишешь `fopen("/tmp/file.txt", "w")`
-> — любой путь, какой указал. Песочницы нет, прав нет, ответственность на
-> тебе. На платформах Apple приложение живёт в **песочнице** (sandbox):
-> чужие папки для него закрыты, а «правильные» (`Documents`, `tmp`) надо
+> — любой путь, какой указал, и за права отвечаешь ты сам. На iOS и в
+> Mac App Store приложение живёт в **песочнице** (sandbox): чужие папки
+> для него закрыты, а «правильные» (`Documents`, `tmp`) надо
 > спросить у системы этими функциями, а не хардкодить путь.
 
 ### Собираем путь из кусочков
@@ -136,7 +140,7 @@ BOOL ok = [fm createDirectoryAtPath:dir
 - `withIntermediateDirectories:YES` — создать заодно все недостающие
   промежуточные папки. С `NO` метод упадёт, если родителя нет.
 - `attributes:nil` — права/атрибуты по умолчанию.
-- `error:&err` — знакомый по главе про `NSError` приём: метод вернёт
+- `error:&err` — знакомый по главе 18 приём: метод вернёт
   `BOOL`, а при `NO` положит причину в `err`. Проверяем именно
   возвращённый `BOOL`, а на `err` смотрим только когда он `NO`.
 
@@ -281,7 +285,7 @@ NSString *fromData = [[NSString alloc] initWithData:raw
 
 ```text
 строку записали в objc-rw.txt
-прочитали 43 символов
+прочитали символов: 43
 совпало с исходным? 1
 первая строка файла: Первая строка
 в строке 78 байт (длиннее символов из-за кириллицы)
@@ -293,7 +297,7 @@ NSString *fromData = [[NSString alloc] initWithData:raw
 Обрати внимание: **43 символа, но 78 байт**. Кириллическая буква в UTF-8
 занимает два байта, а перевод строки и латиница — по одному. Вот почему
 `length` строки и `length` её `NSData` — разные числа (об этом была речь
-в главе про строки).
+в главе 15).
 
 ## Property list: сохраняем коллекции
 
@@ -330,7 +334,8 @@ NSArray *back = [NSArray arrayWithContentsOfURL:url error:&err];
 **Главное ограничение plist:** внутри могут лежать только
 **plist-совместимые типы**. Их ровно шесть: `NSString`, `NSNumber`,
 `NSDate`, `NSData`, `NSArray`, `NSDictionary` (ключи словаря — только
-строки). Сунешь туда свой класс `Task` или `nil` — запись провалится.
+строки). Сунешь туда свой класс `Task` или `NSNull` — запись провалится:
+`writeToURL:error:` вернёт `NO` и положит причину в `err`.
 Для своих объектов нужна архивация (следующий раздел).
 
 Под капотом всем этим заведует класс **`NSPropertyListSerialization`** —
@@ -366,9 +371,10 @@ Foundation работает с ним через класс **`NSJSONSerializati
 ### Объект → JSON
 
 ```objc
-NSData *json = [NSJSONSerialization dataWithJSONObject:tasks
-                                              options:NSJSONWritingPrettyPrinted
-                                                error:&err];
+NSData *json = [NSJSONSerialization
+                   dataWithJSONObject:tasks
+                              options:NSJSONWritingPrettyPrinted
+                                error:&err];
 ```
 
 `dataWithJSONObject:options:error:` берёт коллекцию и возвращает `NSData`
@@ -383,6 +389,12 @@ NSData *json = [NSJSONSerialization dataWithJSONObject:tasks
 вложенные массивы/словари и `NSNull` (станет `null`). Ключи словаря —
 только строки. `NSDate`, `NSData` или свой класс напрямую не лезут — их
 сначала надо привести к строке/числу.
+
+Осторожно: здесь `NSJSONSerialization` ведёт себя не так, как при чтении.
+Неподходящий объект внутри коллекции — это не `nil` с ошибкой, а
+**исключение** `NSInvalidArgumentException` («Invalid type in JSON
+write»), и программа падает. Если не уверен в данных, спроси заранее:
+`[NSJSONSerialization isValidJSONObject:tasks]` вернёт `YES` или `NO`.
 
 ### JSON → объект
 
@@ -405,8 +417,11 @@ NSArray *parsed = [NSJSONSerialization JSONObjectWithData:raw
 уронит программу, а вернёт `nil` и положит причину в `err`:
 
 ```objc
-NSData *broken = [@"{ это не json }" dataUsingEncoding:NSUTF8StringEncoding];
-id bad = [NSJSONSerialization JSONObjectWithData:broken options:0 error:&err];
+NSData *broken = [@"{ это не json }"
+                     dataUsingEncoding:NSUTF8StringEncoding];
+id bad = [NSJSONSerialization JSONObjectWithData:broken
+                                         options:0
+                                           error:&err];
 // bad == nil, err.code == 3840 (ошибка разбора)
 ```
 
@@ -442,9 +457,10 @@ NSArray<NSDictionary *> *tasks = @[
 ### Шаг 2. В файл и обратно
 
 ```objc
-NSData *json = [NSJSONSerialization dataWithJSONObject:tasks
-                                              options:NSJSONWritingPrettyPrinted
-                                                error:&err];
+NSData *json = [NSJSONSerialization
+                   dataWithJSONObject:tasks
+                              options:NSJSONWritingPrettyPrinted
+                                error:&err];
 [json writeToFile:jsonPath atomically:YES];
 
 NSData *raw = [NSData dataWithContentsOfFile:jsonPath];
@@ -472,7 +488,7 @@ NSArray *sorted = [open sortedArrayUsingDescriptors:@[
 JSON). Вывод:
 
 ```text
-plist: прочитали 3 задач, первая: Купить кофе
+plist: прочитали задач: 3, первая: Купить кофе
 JSON-файл: 269 байт
 содержимое файла:
 [
@@ -672,19 +688,26 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
   в другой — кириллица превратится в мусор или чтение вернёт `nil`. Пиши
   и читай в одной кодировке, по умолчанию UTF-8.
 - **Не проверил результат.** `stringWithContentsOfFile:`,
-  `dataWithJSONObject:`, `unarchivedObjectOfClass:` возвращают `nil` при
+  `JSONObjectWithData:`, `unarchivedObjectOfClass:` возвращают `nil` при
   сбое. Используешь результат без проверки — поедешь дальше с `nil` и
   получишь пустоту или странности. Проверяй возврат, потом смотри `err`.
 - **Несовместимый тип в plist/JSON.** Положил в массив свой объект,
-  `NSDate` (для JSON), или `nil` — сериализация провалится. В plist/JSON
-  идут только разрешённые типы; свои объекты — через архивацию.
+  `NSDate` (для JSON) или `NSNull` (для plist) — сериализация провалится.
+  Plist вернёт `NO`/`nil` с ошибкой, а `dataWithJSONObject:` бросит
+  исключение и уронит программу — проверяй `isValidJSONObject:`. В
+  plist/JSON идут только разрешённые типы; свои объекты — через архивацию.
 - **Забыл `supportsSecureCoding` или `decodeObjectOfClass:`.** Без
   `+supportsSecureCoding` → `YES` архивация с `requiringSecureCoding:YES`
-  упадёт. А если в `initWithCoder:` для объекта взять старый
-  `decodeObjectForKey:` вместо `decodeObjectOfClass:forKey:`, потеряешь
-  всю защиту `NSSecureCoding`.
-- **Пишешь не во временную/Documents папку.** Из-за песочницы запись в
-  произвольный путь молча провалится (`writeToFile:` вернёт `NO`).
+  не удастся: вернётся `nil` и ошибка «Class 'Task' does not adopt it».
+  А если в `initWithCoder:` для объекта взять старый
+  `decodeObjectForKey:` вместо `decodeObjectOfClass:forKey:`, безопасный
+  распаковщик не узнает, какой класс ты ждёшь по этому ключу, и сверит
+  значение только со списком классов корня. По нашим экспериментам строку
+  он ещё пропустит, а `NSDate` или массив — уже нет: вся распаковка
+  вернёт `nil` с ошибкой «value for key … was of unexpected class».
+- **Пишешь не во временную/Documents папку.** В приложении с песочницей
+  запись в произвольный путь провалится (`writeToFile:` вернёт `NO`, а
+  если не проверять возврат, ты этого и не заметишь).
   Спрашивай папку у системы: `NSTemporaryDirectory()` или
   `NSSearchPathForDirectoriesInDomains`.
 - **`atomically:NO` для важных данных.** Прервётся запись — получишь
@@ -701,9 +724,10 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 3. Возьми список задач из `19-json.m`, добавь каждой ключ `@"tags"` с
    массивом строк. Убедись, что JSON по-прежнему пишется и читается
    (вложенные массивы JSON разрешены).
-4. Скорми `JSONObjectWithData:` файл, которого нет
-   (`dataWithContentsOfFile:` вернёт `nil`). Поймай ситуацию и выведи
-   понятное сообщение, не уронив программу.
+4. Попробуй разобрать JSON из файла, которого нет
+   (`dataWithContentsOfFile:` вернёт `nil`). Поймай ситуацию до вызова
+   `JSONObjectWithData:` (с `nil` вместо данных он бросит исключение) и
+   выведи понятное сообщение, не уронив программу.
 5. Добавь классу `Task` поле `NSDate *createdAt`. Закодируй его
    `encodeObject:forKey:`, раскодируй `decodeObjectOfClass:[NSDate class]
    forKey:`. Проверь, что дата переживает архивацию.
@@ -726,20 +750,20 @@ Foundation: ошибки приходят через возврат `nil`/`NO` �
 изобретал формат, здесь весь объект или коллекция ложатся на диск и
 встают обратно готовыми вызовами. Дальше, в главе 20, разберём KVC и KVO
 — как читать и менять свойства объекта по имени и как подписываться на их
-изменения; механика `valueForKey:`, мелькавшая в этой и прошлой главе,
-развернётся в полную силу.
+изменения; механика `valueForKey:`, мелькавшая в главе 17 (и неявно работавшая
+здесь в `NSPredicate` и `NSSortDescriptor`), развернётся в полную силу.
 
 ## Документация Apple
 
 - `NSFileManager` —
-  developer.apple.com/documentation/foundation/nsfilemanager
+  developer.apple.com/documentation/foundation/filemanager
 - `NSString` (запись/чтение файла) —
   developer.apple.com/documentation/foundation/nsstring
 - `NSData` — developer.apple.com/documentation/foundation/nsdata
 - `NSJSONSerialization` —
-  developer.apple.com/documentation/foundation/nsjsonserialization
+  developer.apple.com/documentation/foundation/jsonserialization
 - `NSPropertyListSerialization` —
-  developer.apple.com/documentation/foundation/nspropertylistserialization
+  developer.apple.com/documentation/foundation/propertylistserialization
 - `NSKeyedArchiver` —
   developer.apple.com/documentation/foundation/nskeyedarchiver
 - `NSKeyedUnarchiver` —
@@ -747,6 +771,7 @@ Foundation: ошибки приходят через возврат `nil`/`NO` �
 - `NSSecureCoding` —
   developer.apple.com/documentation/foundation/nssecurecoding
 - `NSCoding` — developer.apple.com/documentation/foundation/nscoding
-- Archives and Serializations Programming Guide — developer.apple.com/library
-  → «Archives and Serializations Programming Guide» (plist, архивы и
-  кодирование объектов одним обзором).
+- Archives and Serializations Programming Guide (архив Apple) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  Archiving/Archiving.html (plist, архивы и кодирование объектов одним
+  обзором).

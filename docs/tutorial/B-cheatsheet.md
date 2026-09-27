@@ -16,14 +16,18 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 file.m -o prog
 - `-fobjc-arc` — включить ARC (автоподсчёт ссылок). Память объектов
   считает компилятор.
 - `-framework Foundation` — подключить библиотеку `NSString`, `NSArray`,
-  `NSLog` и прочих. Без неё компоновщик ругается `Undefined symbols`.
+  `NSLog` и прочих. Старые версии clang без неё ругались `Undefined
+  symbols`; свежий Apple clang (по нашей проверке — clang 21 из Xcode 26)
+  для `.m`-файлов подставляет её сам. В книге пишем флаг явно.
 - `-Wall -Wextra` — показать предупреждения. Чистый код собирается без них.
 - `-O2` — оптимизация. `-O0` или без флага — отладочная сборка.
 - `-o prog` — имя результата. Без `-o` получится `a.out`.
 
 ```text
-clang -fno-objc-arc -framework Foundation file.m -o prog   # ручная память (MRR)
-clang -std=c11 -Wall -Wextra -O2 file.c -o prog            # чистый Си (.c)
+# ручная память (MRR):
+clang -fno-objc-arc -framework Foundation file.m -o prog
+# чистый Си (.c):
+clang -std=c11 -Wall -Wextra -O2 file.c -o prog
 ```
 
 `-fno-objc-arc` — отключить ARC, тогда `retain`/`release`/`autorelease`
@@ -178,7 +182,7 @@ id<Drawing> thing = someShape;          // «любой объект, умеющ
 if ([obj respondsToSelector:@selector(drawHighlighted)]) {
     [obj drawHighlighted];                          // проверка @optional
 }
-if ([obj conformsToProtocol:@protocol(Drawing)]) { … } // принимает ли протокол
+if ([obj conformsToProtocol:@protocol(Drawing)]) { … } // принят ли протокол
 ```
 
 Протокол — список методов-обязательств. `<Drawing>` после класса —
@@ -230,11 +234,9 @@ NSArray *sorted = [arr sortedArrayUsingComparator:
 
 ```objc
 __block int total = 0;                  // __block — можно менять внутри блока
-for (NSNumber *n in nums) {
-    [arr enumerateObjectsUsingBlock:^(id obj, NSUInteger i, BOOL *stop) {
-        total += [obj intValue];
-    }];
-}
+void (^addUp)(int) = ^(int x) { total += x; };
+addUp(2);
+addUp(3);                               // total == 5
 
 __weak typeof(self) weakSelf = self;    // разрыв retain cycle
 self.handler = ^{ [weakSelf doWork]; }; // блок не удерживает self
@@ -261,9 +263,10 @@ ARC сам считает strong-ссылки: пока есть хоть одн
 delegate объявлен `strong`. Лечение — сделать одну из ссылок `weak`.
 
 ```objc
-@autoreleasepool {              // в тяжёлых циклах освобождать по дороге
-    for (int i = 0; i < 1000000; i++) {
+for (int i = 0; i < 1000000; i++) {
+    @autoreleasepool {          // пул внутри цикла, а не снаружи
         NSString *s = [NSString stringWithFormat:@"%d", i];
+        (void)s;                // … работа с s …
         // временные объекты освобождаются на каждой итерации
     }
 }
@@ -282,10 +285,10 @@ NSDictionary *d = @{@"key": @1, @"name": @"Bob"};
 ```
 
 ```objc
-NSString *first = a[0];         // субскрипт массива = objectAtIndex:0
-NSNumber *one   = d[@"key"];    // субскрипт словаря  = objectForKey:@"key"
+NSString *first = a[0];         // = [a objectAtIndexedSubscript:0]
+NSNumber *one   = d[@"key"];    // = [d objectForKeyedSubscript:@"key"]
 NSMutableArray *m = [a mutableCopy];
-m[0] = @"z";                    // запись = setObject:atIndexedSubscript:
+m[0] = @"z";                    // = [m setObject:@"z" atIndexedSubscript:0]
 ```
 
 Знак `@` строит объект из обычного значения. Субскрипты `[i]`/`[key]` —
@@ -409,7 +412,7 @@ Nullability помечает, где `nil` допустим. Между `_BEGIN`
 
 ```objc
 NSArray<NSString *> *names;                       // дженерик: массив строк
-NSDictionary<NSString *, NSNumber *> *scores;     // ключи-строки, значения-числа
+NSDictionary<NSString *, NSNumber *> *scores;     // строка → число
 NSMutableArray<User *> *users;
 ```
 
@@ -423,19 +426,22 @@ NSLog(@"%d", 42);                   // int
 NSLog(@"%ld", (long)bigInt);        // long / NSInteger — кастуй к long
 NSLog(@"%lu", (unsigned long)u);    // NSUInteger — кастуй к unsigned long
 NSLog(@"%f", 3.14);                 // double / float
-NSLog(@"%zu", sizeof(int));         // size_t (длины, count)
-NSLog(@"%p", (__bridge void *)obj); // адрес указателя
+NSLog(@"%zu", sizeof(int));         // size_t (sizeof, strlen)
+NSLog(@"%p", obj);                  // адрес объекта
 NSLog(@"%@ — %ld", name, (long)age);
 ```
 
 `%@` — для объектов, остальное — как в `printf`. `NSInteger`/`NSUInteger`
-кастуй к `long`/`unsigned long`. Для `%p` под ARC нужен `(__bridge void *)`.
+кастуй к `long`/`unsigned long`. Объект в `%p` можно передать как есть:
+с `-Wall -Wextra` clang молчит (ворчит только `-Wformat-pedantic`).
+`(__bridge void *)obj` нужен лишь тогда, когда объект явно приводишь к
+`void *` — без `__bridge` ARC такое приведение не пропустит.
 
 ## Частые грабли — одной строкой
 
 - `==` сравнивает указатели, для содержимого строк — `isEqualToString:`.
 - `NSString`-свойство объявляй `copy`, иначе словят мутацию через `NSMutableString`.
-- Сняв KVO-наблюдателя, обязательно вызови `removeObserver:` (иначе крэш).
+- KVO-наблюдателя снимай `removeObserver:` до того, как он умрёт (иначе крэш).
 - `delegate` всегда `weak` — `strong` даёт retain cycle.
 - Нельзя менять коллекцию внутри `for (x in collection)` — будет исключение.
 - Блок, хранимый объектом и зовущий `self`, — retain cycle: бери `weakSelf`.
@@ -445,7 +451,9 @@ NSLog(@"%@ — %ld", name, (long)age);
 
 ## Документация Apple
 
-- Programming with Objective-C — developer.apple.com (язык целиком).
+- Programming with Objective-C (язык целиком) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/Introduction/Introduction.html
+- Working with Blocks (раздел про блоки того же руководства) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/WorkingwithBlocks/WorkingwithBlocks.html
 - Objective-C Runtime — developer.apple.com/documentation/objectivec
 - Foundation — developer.apple.com/documentation/foundation
-- Working with Blocks — developer.apple.com (раздел про блоки).

@@ -56,8 +56,8 @@ ARC**). Потом включим ARC и увидим, что компилято
 > указателем на него. Забыл `free` — утечка. Позвал `free` дважды или
 > обратился после него — крах. В Objective-C объект **сам считает ссылки
 > на себя**, а ARC автоматизирует освобождение. Но это **не** сборщик
-> мусора, как в Java или C#: момент уничтожения определён **детерминиро-
-> ванно**, по счётчику, а не выбирается фоновым процессом когда-нибудь
+> мусора, как в Java или C#: момент уничтожения определён
+> **детерминированно**, по счётчику, а не выбирается фоновым процессом когда-нибудь
 > потом.
 
 Как же объект понимает, что он больше не нужен? Через **счётчик ссылок**.
@@ -71,8 +71,10 @@ ARC**). Потом включим ARC и увидим, что компилято
 Правила игры (исторически их называют правилами **MRR** — Manual Retain
 Release, ручного управления):
 
-- Создал объект через `alloc`, `new` или `copy` — ты стал владельцем,
-  счётчик равен 1.
+- Получил объект от метода, чьё имя начинается с `alloc`, `new`, `copy`
+  или `mutableCopy`, — ты стал владельцем. У только что созданного
+  объекта счётчик равен 1. (`new` — это `alloc` и `init` одним
+  сообщением.)
 - Хочешь стать ещё одним владельцем уже существующего объекта — пошли ему
   `retain`, счётчик +1.
 - Закончил с объектом — пошли `release`, счётчик −1. Ты больше не
@@ -223,8 +225,8 @@ dealloc: Аружан уничтожен
 
 > **Про `retainCount` начистоту.** Мы печатаем счётчик только ради
 > учёбы — увидеть механику глазами. В реальном коде на `retainCount`
-> **не опираются**: у системных объектов он бывает неожиданным (строки-
-> литералы, кеши, оптимизации). Apple прямо не советует принимать
+> **не опираются**: у системных объектов он бывает неожиданным
+> (строки-литералы, кеши, оптимизации). Apple прямо не советует принимать
 > решения по его значению. Доверяй не числу, а правилу баланса плюсов и
 > минусов.
 
@@ -253,8 +255,8 @@ dealloc: Аружан уничтожен
 `[p autorelease]` возвращает тот же объект `p`, но помечает его: «когда
 текущий пул закроется, пошли мне `release`». Объект остаётся живым на всё
 время, пока вызывающий с ним работает, а лишний `release` случится
-автоматически при закрытии пула. Баланс соблюдён, и никто не держал
-объект мёртвым.
+автоматически при закрытии пула. Баланс соблюдён, и никому не достался
+мёртвый объект.
 
 Вот теперь понятно, **зачем `@autoreleasepool` из главы 1**. Эта обёртка
 и есть тот самый пул:
@@ -484,7 +486,7 @@ ivar. Смысл один.
 
 @interface Child : NSObject
 @property (nonatomic, copy)   NSString *name;
-@property (nonatomic, strong) Parent *parent;  /* сильная ← вот она, проблема */
+@property (nonatomic, strong) Parent *parent;  /* сильная ← вот проблема */
 @end
 
 @implementation Parent
@@ -511,8 +513,8 @@ int main(void) {
         Child *kid = [Child new];
         kid.name = @"Дочь";
 
-        mom.child  = kid;    /* мама держит дочь  (+1 к счётчику kid) */
-        kid.parent = mom;    /* дочь держит маму  (+1 к счётчику mom) — цикл */
+        mom.child  = kid;    /* мама держит дочь (+1 к счётчику kid) */
+        kid.parent = mom;    /* дочь держит маму (+1 к счётчику mom): цикл */
 
         NSLog(@"выходим из блока — ждём два dealloc...");
     }   /* mom и kid выходят из видимости, но держат друг друга */
@@ -522,8 +524,9 @@ int main(void) {
 }
 ```
 
-`[Parent new]` — короткая форма `[[Parent alloc] init]` (из главы 6):
-тоже даёт владение, счётчик 1.
+`[Parent new]` — короткая форма `[[Parent alloc] init]`: метод класса
+`+new` унаследован от `NSObject` и делает оба шага разом. Имя начинается
+с `new`, значит, по правилам шага 1 он тоже даёт владение, счётчик 1.
 
 Посчитаем счётчики руками. После `mom.child = kid` у `kid` две сильные
 ссылки: локальная `kid` и свойство `mom.child` — счётчик 2. После
@@ -592,7 +595,7 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 
 @interface Child : NSObject
 @property (nonatomic, copy) NSString *name;
-@property (nonatomic, weak) Parent *parent;    /* WEAK: не владеет, нет цикла */
+@property (nonatomic, weak) Parent *parent;    /* WEAK: не владеет */
 @end
 
 @implementation Parent
@@ -636,7 +639,8 @@ int main(void) {
             Parent *temp = [Parent new];
             temp.name = @"Времянка";
             observer.parent = temp;   /* weak-ссылка на temp */
-            NSLog(@"пока temp жив: observer.parent = %@", observer.parent.name);
+            NSLog(@"пока temp жив: observer.parent = %@",
+                  observer.parent.name);
         }   /* temp выходит из видимости и умирает */
         /* weak-ссылка сама стала nil — висячего указателя НЕТ */
         NSLog(@"temp умер: observer.parent = %@", observer.parent);
@@ -827,16 +831,19 @@ Objective-C**: указатель `isa`, метаклассы, дерево кл
 
 ## Документация Apple
 
-- Programming with Objective-C → **Encapsulating Data** (раздел про
-  владение и `strong`/`weak`/`copy` у свойств) — developer.apple.com →
-  «Programming with Objective-C».
+- Programming with Objective-C → **Encapsulating Data** (владение и
+  `strong`/`weak`/`copy` у свойств) —
+  <https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/EncapsulatingData/EncapsulatingData.html>
 - **Advanced Memory Management Programming Guide** — полная модель
   владения, правила `retain`/`release`/`autorelease`, пулы
-  автоосвобождения — developer.apple.com.
+  автоосвобождения —
+  <https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MemoryMgmt/Articles/MemoryMgmt.html>
 - **Transitioning to ARC Release Notes** — что делает ARC, что под ним
   запрещено, `__strong`/`__weak`/`__unsafe_unretained`, циклы удержания и
-  их разрыв — developer.apple.com.
-- `NSObject` — `alloc`, `retain`, `release`, `autorelease`, `dealloc` —
-  developer.apple.com/documentation/objectivec/nsobject
+  их разрыв —
+  <https://developer.apple.com/library/archive/releasenotes/ObjectiveC/RN-TransitioningToARC/Introduction/Introduction.html>
+- `NSObject` — `alloc`, `retain`, `release`, `autorelease`, `dealloc`,
+  `retainCount` —
+  <https://developer.apple.com/documentation/objectivec/nsobject-swift.class>
 - `NSAutoreleasePool` и директива `@autoreleasepool` —
-  developer.apple.com/documentation/foundation/nsautoreleasepool
+  <https://developer.apple.com/documentation/foundation/nsautoreleasepool>

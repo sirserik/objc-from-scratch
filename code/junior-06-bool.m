@@ -13,7 +13,8 @@ int main(void) {
         NSLog(@"есть элементы: %d", hasItems);
 
         /* Опасный приём: затолкать count прямо в BOOL и сравнить с YES.
-           count может оказаться кратным 256 — и младший байт даст 0. */
+           count может оказаться кратным 256. На x86_64 (BOOL = signed
+           char) младший байт даст 0; на arm64 (BOOL = bool) будет 1. */
         int weird = 256;
         BOOL fromInt = (BOOL)weird;
         NSLog(@"BOOL из числа 256 = %d", fromInt);

@@ -35,7 +35,7 @@ int main(void) {
             NSLog(@"чтение не удалось: %@", err.localizedDescription);
             return 1;
         }
-        NSLog(@"прочитали %lu символов", (unsigned long)back.length);
+        NSLog(@"прочитали символов: %lu", (unsigned long)back.length);
         NSLog(@"совпало с исходным? %d", [back isEqualToString:text]);
 
         /* Заодно посчитаем строки, разбив по переводу строки. */

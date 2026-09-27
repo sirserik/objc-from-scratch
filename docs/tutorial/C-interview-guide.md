@@ -81,8 +81,8 @@ Junior, Middle, Senior. Деление условное (на реальном �
 
 - **Память глубже.** Цикл удержания (retain cycle) — как возникает, как
   его увидеть, как разорвать через `weak`. Что такое autorelease pool и
-  когда он сливается. Аналог `unowned` из Swift — `__unsafe_unretained` и
-  чем он опаснее `weak`.
+  когда он сливается. `__unsafe_unretained` (ближайший аналог в Swift —
+  `unowned(unsafe)`) и чем он опаснее `weak`.
 - **Блоки и захват.** Как блок захватывает переменные, почему `self`
   внутри блока — это сильная ссылка и как из-за неё рождается цикл, что
   делает `__block`, зачем пишут `__weak typeof(self) weakSelf = self`.
@@ -96,7 +96,8 @@ Junior, Middle, Senior. Деление условное (на реальном �
   `mutableCopy`, поверхностная и глубокая копия, протоколы `NSCopying` /
   `NSMutableCopying`.
 - **KVC/KVO базово.** Что такое доступ к свойствам по строковому ключу
-  (`valueForKey:`), идея наблюдения за изменениями (`addObserver:`).
+  (`valueForKey:`), идея наблюдения за изменениями
+  (`addObserver:forKeyPath:options:context:`).
 
 ### Senior — раздел F
 
@@ -204,10 +205,10 @@ Junior, Middle, Senior. Деление условное (на реальном �
 `nil`), и коварно: баг с молчаливым `nil` не упадёт, а тихо вернёт ноль, и
 ищи потом, почему «ничего не происходит».
 
-> **Отличие от Си.** В Си вызов через нулевой указатель функции — это
-> мгновенный крах. В Objective-C отправка сообщения `nil` — штатная
-> безопасная операция, которая просто возвращает ноль. Механику диспетчера
-> сообщений мы разбирали в главе про runtime.
+> **Отличие от Си.** В Си разыменовать нулевой указатель — неопределённое
+> поведение, на практике обычно мгновенный крах. В Objective-C отправка
+> сообщения `nil` — штатная безопасная операция, которая просто
+> возвращает ноль. Механику диспетчера сообщений мы разбирали в главе 14.
 
 **Зачем делегат держат через `weak`?** Чтобы не было цикла удержания.
 Обычно объект A создаёт объект B и держит его сильно, а B хочет
@@ -232,17 +233,19 @@ A держит B, B держит A — оба никогда не освобод
 его целиком. И всё. `atomic` ничего не знает про **содержимое** объекта и
 про **составные** операции. Если два потока одновременно зовут
 `[array addObject:]` у одного `NSMutableArray`, само свойство атомарно
-отдаёт указатель на массив, но мутация массива не защищена — будет гонка и
-падение. Потокобезопасность коллекции делается синхронизацией (очередь
+отдаёт указатель на массив, но мутация массива не защищена — гонка данных,
+порча массива и рано или поздно падение. Потокобезопасность коллекции делается синхронизацией (очередь
 GCD, блокировка), а не атрибутом свойства.
 
 **В чём разница `id` и `instancetype`?** `id` — «какой-то объект, тип
 неизвестен», компилятор не проверяет, что ты ему шлёшь. `instancetype` —
 «объект класса получателя», и компилятор это знает. Разница видна на
-фабричных методах и инициализаторах: если `+ (instancetype)person`
-вернёт, компилятор понимает, что это именно `Person *`, и ловит ошибки
-типов; если вернуть `id`, проверки нет. Поэтому в инициализаторах и
-конструкторах всегда пишут `instancetype`, а не `id`.
+фабричных методах: если фабрика объявлена как `+ (instancetype)person`,
+компилятор понимает, что `[Person person]` — это именно `Person *`, и
+ловит ошибки типов; если она возвращает `id`, проверки нет. Тонкость:
+для методов семейств `alloc`/`init`/`new` компилятор выводит тип сам даже
+при `id`, а для фабрик — нет. Поэтому в инициализаторах и фабриках пишут
+`instancetype`, а не `id`: единообразно и без сюрпризов.
 
 **Что такое method swizzling и чем он опасен?** Это подмена реализации
 метода во время выполнения: ты меняешь местами реализации двух методов
@@ -343,26 +346,34 @@ GCD, блокировка), а не атрибутом свойства.
 
 **Язык и идиомы:**
 
-- Programming with Objective-C — developer.apple.com → «Programming with
-  Objective-C» (объекты, сообщения, свойства, протоколы, категории, блоки;
-  база для Junior/Middle-вопросов).
-- Coding Guidelines for Cocoa — developer.apple.com (именование методов и
-  классов так, как этого ждут на собеседовании про проектирование API).
+- Programming with Objective-C (объекты, сообщения, свойства, протоколы,
+  категории, блоки; база для Junior/Middle-вопросов) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  ProgrammingWithObjectiveC/Introduction/Introduction.html
+- Coding Guidelines for Cocoa (именование методов и классов так, как
+  этого ждут на собеседовании про проектирование API) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  CodingGuidelines/CodingGuidelines.html
 
 **Память:**
 
-- Transitioning to ARC Release Notes — developer.apple.com (что делает
-  ARC, `__strong`/`__weak`/`__unsafe_unretained`, циклы удержания — основа
-  Middle-вопросов про память).
-- Advanced Memory Management Programming Guide — developer.apple.com
-  (полная модель владения: `retain`/`release`/`autorelease`, пулы
-  автоосвобождения).
+- Transitioning to ARC Release Notes (что делает ARC,
+  `__strong`/`__weak`/`__unsafe_unretained`, циклы удержания — основа
+  Middle-вопросов про память) —
+  developer.apple.com/library/archive/releasenotes/ObjectiveC/
+  RN-TransitioningToARC/Introduction/Introduction.html
+- Advanced Memory Management Programming Guide (полная модель владения:
+  `retain`/`release`/`autorelease`, пулы автоосвобождения) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  MemoryMgmt/Articles/MemoryMgmt.html
 
 **Runtime (Senior):**
 
-- Objective-C Runtime Programming Guide — developer.apple.com (Messaging,
-  Dynamic Method Resolution, Message Forwarding — то, что спрашивают про
-  `objc_msgSend` и пересылку).
+- Objective-C Runtime Programming Guide (Messaging, Dynamic Method
+  Resolution, Message Forwarding — то, что спрашивают про `objc_msgSend`
+  и пересылку) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  ObjCRuntimeGuide/Introduction/Introduction.html
 - Objective-C Runtime (API reference) —
   developer.apple.com/documentation/objectivec (`object_getClass`,
   `class_getName`, `method_exchangeImplementations`, `sel_getName` — для
@@ -373,17 +384,21 @@ GCD, блокировка), а не атрибутом свойства.
 - Dispatch (Grand Central Dispatch) —
   developer.apple.com/documentation/dispatch (очереди, `dispatch_async`,
   барьеры, `dispatch_once` — потокобезопасность и синглтон).
-- Concurrency Programming Guide — developer.apple.com (очереди против
-  потоков, общая модель).
+- Concurrency Programming Guide (очереди против потоков, общая модель) —
+  developer.apple.com/library/archive/documentation/General/Conceptual/
+  ConcurrencyProgrammingGuide/Introduction/Introduction.html
 
 **Коллекции и значения:**
 
 - Foundation — developer.apple.com/documentation/foundation (корень
   справочников по классам).
-- Collections Programming Topics — developer.apple.com/library (массивы,
-  словари, множества, копирование, `NSCopying`).
+- Collections Programming Topics (массивы, словари, множества,
+  копирование, `NSCopying`) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  Collections/Collections.html
 
 **Interop со Swift:**
 
-- Swift and Objective-C in the Same Project — developer.apple.com (как два
-  языка видят друг друга, аннотации nullability, облегчённые дженерики).
+- Importing Objective-C into Swift (как два языка видят друг друга,
+  аннотации nullability, облегчённые дженерики) —
+  developer.apple.com/documentation/swift/importing-objective-c-into-swift

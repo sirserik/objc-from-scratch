@@ -13,11 +13,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) double blue;
 
 /* Фабричный метод. Без аннотации Swift увидел бы громоздкое
-   PaletteColor.color(red:green:blue:). С NS_SWIFT_NAME(init(...))
-   он становится обычным инициализатором: PaletteColor(red:green:blue:). */
-+ (instancetype)colorWithRed:(double)red
-                       green:(double)green
-                        blue:(double)blue
+   PaletteColor.rgb(withRed:green:blue:). С NS_SWIFT_NAME(init(...))
+   он становится обычным инициализатором: PaletteColor(red:green:blue:).
+   (Фабрику colorWithRed:... Swift сделал бы init сам: её имя начинается
+   с последнего слова имени класса, Color.) */
++ (instancetype)rgbWithRed:(double)red
+                     green:(double)green
+                      blue:(double)blue
     NS_SWIFT_NAME(init(red:green:blue:));
 
 /* Длинное имя метода ужимаем для Swift до hexString(). */
@@ -30,14 +32,16 @@ NS_ASSUME_NONNULL_BEGIN
 
 /* Метод с error: последним параметром.
    В Swift автоматически станет throwing: try loader.load(from: text). */
-- (nullable NSDictionary<NSString *, NSString *> *)loadFromString:(NSString *)text
-                                                            error:(NSError **)error
+- (nullable NSDictionary<NSString *, NSString *> *)
+    loadFromString:(NSString *)text
+             error:(NSError **)error
     NS_SWIFT_NAME(load(from:));
 
 /* Тоже принимает error:, но возвращает BOOL как настоящий результат,
    а не как «успех/провал». NS_SWIFT_NOTHROW оставляет его обычным
    методом, возвращающим Bool, а не throwing. */
-- (BOOL)isValidConfig:(NSString *)text error:(NSError **)error NS_SWIFT_NOTHROW;
+- (BOOL)isValidConfig:(NSString *)text
+                error:(NSError **)error NS_SWIFT_NOTHROW;
 
 @end
 
@@ -49,9 +53,9 @@ static NSString *const ConfigErrorDomain = @"ConfigErrorDomain";
 
 @implementation PaletteColor
 
-+ (instancetype)colorWithRed:(double)red
-                       green:(double)green
-                        blue:(double)blue {
++ (instancetype)rgbWithRed:(double)red
+                     green:(double)green
+                      blue:(double)blue {
     PaletteColor *c = [[self alloc] init];
     if (c) {
         c->_red = red;
@@ -73,8 +77,9 @@ static NSString *const ConfigErrorDomain = @"ConfigErrorDomain";
 
 @implementation ConfigLoader
 
-- (nullable NSDictionary<NSString *, NSString *> *)loadFromString:(NSString *)text
-                                                            error:(NSError **)error {
+- (nullable NSDictionary<NSString *, NSString *> *)
+    loadFromString:(NSString *)text
+             error:(NSError **)error {
     if (text.length == 0) {
         if (error) {
             *error = [NSError errorWithDomain:ConfigErrorDomain
@@ -85,7 +90,8 @@ static NSString *const ConfigErrorDomain = @"ConfigErrorDomain";
         }
         return nil;
     }
-    NSMutableDictionary<NSString *, NSString *> *result = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *result =
+        [NSMutableDictionary dictionary];
     for (NSString *pair in [text componentsSeparatedByString:@";"]) {
         NSArray<NSString *> *kv = [pair componentsSeparatedByString:@"="];
         if (kv.count == 2) {
@@ -96,7 +102,7 @@ static NSString *const ConfigErrorDomain = @"ConfigErrorDomain";
 }
 
 - (BOOL)isValidConfig:(NSString *)text error:(NSError **)error {
-    (void)error;   /* здесь error не используем — просто демонстрация сигнатуры */
+    (void)error;   /* error не используем — это демонстрация сигнатуры */
     return [text containsString:@"="];
 }
 
@@ -106,7 +112,9 @@ static NSString *const ConfigErrorDomain = @"ConfigErrorDomain";
 int main(void) {
     @autoreleasepool {
         /* Фабричный метод (в Swift это был бы init(red:green:blue:)) */
-        PaletteColor *lime = [PaletteColor colorWithRed:0.6 green:0.9 blue:0.2];
+        PaletteColor *lime = [PaletteColor rgbWithRed:0.6
+                                                green:0.9
+                                                 blue:0.2];
         NSLog(@"Цвет в hex: %@", [lime hexStringRepresentation]);
 
         ConfigLoader *loader = [[ConfigLoader alloc] init];

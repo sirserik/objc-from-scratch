@@ -97,7 +97,7 @@
   (разберём ниже);
 - участие в подсчёте ссылок ARC.
 
-Поэтому когда ты пишешь свой класс «с нуля», ты на самом деле никогда не
+Поэтому когда ты пишешь свой класс «с нуля», ты никогда не
 начинаешь с пустого места — ты наследуешь от `NSObject` и получаешь весь
 этот фундамент даром. Вот почему в каждом нашем `@interface` справа от
 двоеточия стоял `NSObject`.
@@ -236,7 +236,7 @@ Dog initWithName:breed:
 > Здесь же всё это — встроенная механика языка: `super` сам знает, чью
 > реализацию звать.
 
-> **Отличие от Си.** `super` — это **не объект**. Это указание компилятору
+> **Что такое `super`.** `super` — это **не объект**. Это указание компилятору
 > и runtime: «при поиске метода начни не с моего класса, а на ступень
 > выше — у суперкласса». `self` и `super` указывают на один и тот же
 > объект; разница лишь в том, *откуда начинать искать* нужный метод.
@@ -302,7 +302,7 @@ Animal *someone = [[Dog alloc] initWithName:@"Рекс" breed:@"овчарка"]
 И вот вопрос на миллион: когда мы зовём `[someone describe]`, а внутри
 `describe` срабатывает `[self speak]` — **чей** `speak` выполнится?
 Родительский (`Animal`, ведь тип переменной такой) или собачий (`Dog`,
-ведь объект на самом деле собака)?
+ведь объект — собака)?
 
 Ответ: **собачий**. И это ключевая идея главы.
 
@@ -433,7 +433,7 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 ./animals
 ```
 
-Вывод (дата и числа будут свои):
+Вывод (префикс `NSLog` с датой и номерами опущен):
 
 ```text
 --- одно животное в переменной типа Animal* ---
@@ -702,7 +702,8 @@ int main(void) {
   понять, кто забыл переопределить метод.
 - `Circle` и `Square` наследуют от `Shape` и **обязаны** дать свой `area`
   — что и делают. Площадь круга — `M_PI * r * r`, квадрата — `side * side`.
-  `M_PI` — константа числа π из стандартной библиотеки.
+  `M_PI` — константа числа π из заголовка `<math.h>` (Foundation
+  подключает его сам).
 - В цикле снова полиморфизм: перебираем фигуры через тип базы `Shape *`,
   но `[s area]` уходит фактическому классу — каждый считает по-своему.
 - `@try { … } @catch (NSException *ex) { … }` — **перехват исключения**.
@@ -794,7 +795,9 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
   животное.
 - **Бесконечная рекурсия через `super`.** `[super describe]` зовёт версию
   родителя. Если перепутать и написать `[self describe]` внутри самого
-  `describe` — метод позовёт сам себя без конца, и программа повиснет.
+  `describe` — метод позовёт сам себя без конца, стек вызовов
+  переполнится, и программа упадёт: терминал напишет
+  `segmentation fault`.
 - **Создаёшь экземпляр абстрактного класса.** Если базовый класс — каркас
   с методами-заглушками, не создавай его напрямую. Заглушка с
   `NSException` напомнит об этом падением при первом же вызове.
@@ -841,11 +844,12 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 ## Документация Apple
 
 - Programming with Objective-C → **Defining Classes** — объявление
-  классов, суперклассы, переопределение методов, `[super …]`,
-  developer.apple.com/library → «Programming with Objective-C».
+  классов, суперклассы, переопределение методов, `[super …]` —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  ProgrammingWithObjectiveC/DefiningClasses/DefiningClasses.html
 - Programming with Objective-C → **Working with Objects** — отправка
   сообщений, `self`, динамическая диспетчеризация.
 - `NSObject` — `class`, `superclass`, `isKindOfClass:`,
   `isMemberOfClass:`, `respondsToSelector:`,
-  developer.apple.com/documentation/objectivec/nsobject
+  developer.apple.com/documentation/objectivec/nsobject-swift.class
 - `NSException` — developer.apple.com/documentation/foundation/nsexception

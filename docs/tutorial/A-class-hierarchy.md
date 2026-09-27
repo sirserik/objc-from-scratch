@@ -4,7 +4,7 @@
 пометками. Держи его под рукой, когда читаешь чужой код или ищешь, от
 кого унаследован незнакомый класс.
 
-У объектной модели Objective-C **два корня**. Из первого, `NSObject`,
+У дерева Foundation **два корня**. Из первого, `NSObject`,
 растёт почти всё — строки, числа, коллекции, даты, сетевые классы, твои
 собственные типы. Второй, `NSProxy`, — отдельный тонкий корень для
 объектов-заместителей; он не наследует `NSObject` и в дереве стоит сам по
@@ -12,11 +12,13 @@
 пересылка сообщений) мы разобрали в главе 14 — здесь её не повторяем,
 только показываем, кто от кого происходит.
 
-Как читать дерево ниже. Отступ и ветка `├─`/`└─` означают «наследник».
-Запись `NSString → NSMutableString` в одной строке — короткая форма для
-пары «неизменяемый → изменяемый». Если у класса в скобках написано
-`(NSObject)`, значит он наследует прямо `NSObject` и отдельной ветки под
-ним нет. Имена даны как в SDK (с префиксом `NS`); в актуальном Swift у
+Как читать дерево ниже. Отступ и ветка `├─`/`└─` у класса означают
+«наследник». Строки без префикса `NS` («Строки и атрибутированный
+текст», «Коллекции» и т.д.) — не классы, а тематические группы: каждый
+класс первого уровня внутри группы наследует прямо `NSObject`. Пометка
+`(NSObject)` у части классов — то же самое, сказанное явно. Каждая связь «родитель →
+наследник» в дереве сверена с runtime: мы прошли по всем классам
+функцией `class_getSuperclass` на macOS 26. Имена даны как в SDK (с префиксом `NS`); в актуальном Swift у
 многих из них есть «голые» имена без префикса (`String`, `URLRequest`),
 но в Objective-C пишем с `NS`.
 
@@ -106,10 +108,12 @@ NSObject  (корневой класс — базовое поведение: al
 │   ├─ NSOperationQueue   (NSObject) очередь, исполняющая NSOperation
 │   ├─ NSRunLoop          (NSObject) цикл обработки событий потока
 │   ├─ NSTimer            (NSObject) отложенный/повторяющийся вызов
-│   ├─ NSLock             (NSObject) обычный мьютекс    ┐
-│   ├─ NSRecursiveLock    (NSObject) рекурсивный мьютекс├ протокол NSLocking
-│   ├─ NSCondition        (NSObject) мьютекс + условие  ┘ (не наследники
-│   └─ NSConditionLock    (NSObject) блокировка по «номеру условия»  друг друга)
+│   │   (четыре блокировки ниже не наследуют друг друга — их роднит
+│   │    только протокол NSLocking)
+│   ├─ NSLock             (NSObject) обычный мьютекс
+│   ├─ NSRecursiveLock    (NSObject) рекурсивный мьютекс
+│   ├─ NSCondition        (NSObject) мьютекс + условие
+│   └─ NSConditionLock    (NSObject) блокировка по «номеру условия»
 │
 ├─ Архивация и сериализация
 │   ├─ NSCoder                      абстрактный кодер/декодер объектов
@@ -133,7 +137,8 @@ NSObject  (корневой класс — базовое поведение: al
     ├─ NSError            (NSObject) ошибка: домен + код + userInfo
     ├─ NSException        (NSObject) исключение (бросается @throw)
     ├─ NSNull             (NSObject) «ничего» там, где nil нельзя
-    │                                (внутри коллекций) — синглтон [NSNull null]
+    │                                (внутри коллекций);
+    │                                синглтон [NSNull null]
     └─ NSUUID             (NSObject) 128-битный уникальный идентификатор
 
 
@@ -178,7 +183,7 @@ Foundation последовательно разделяет данные на �
 
 ## Ключевые протоколы Foundation
 
-Иерархия типов — это не только классы. Многое поведение задают
+Иерархия типов — это не только классы. Многое в поведении задают
 **протоколы** (см. главу 10): класс не наследует их, а *принимает* и
 обязуется реализовать. Самые важные:
 
@@ -189,7 +194,8 @@ Foundation последовательно разделяет данные на �
   `NSObject`, и `NSProxy`, — поэтому объекты обоих деревьев умеют
   отвечать на эти сообщения. Подробности в главе 14.
 - **`NSCopying`.** Требует `-copyWithZone:`. Объект умеет отдать свою
-  **неизменяемую** копию; вызывается через `[obj copy]`. Нужен, чтобы
+  копию (у пар «неизменяемый/изменяемый» — **неизменяемую**); вызывается
+  через `[obj copy]`. Нужен, чтобы
   объект можно было класть ключом в `NSDictionary`.
 - **`NSMutableCopying`.** Требует `-mutableCopyWithZone:`. Отдаёт
   **изменяемую** копию; вызывается через `[obj mutableCopy]`.
@@ -244,8 +250,9 @@ NSNumber      <->  CFNumberRef
 владение). Core Foundation считает ссылки вручную
 (`CFRetain`/`CFRelease`), ARC за его типами не следит — отсюда и нужда в
 явных мостах. Это узкая тема; здесь достаточно знать, что мост
-существует. Подробности — в документации Apple «Toll-Free Bridged Types»
-и в разделе про `__bridge` главы 13.
+существует. Подробности — в документации Apple «Toll-Free Bridged Types».
+Само слово `__bridge` ты уже встречал в главах 8 и 14 — там им приводили
+объект к `void *`, чтобы напечатать адрес.
 
 ## Документация Apple
 
@@ -254,16 +261,10 @@ NSNumber      <->  CFNumberRef
 - Foundation → Numbers, Data, and Basic Values; Strings and Text;
   Collections; Dates and Times; Filtering and Sorting; URL Loading
   System — тематические разделы того же справочника.
-- Foundation Constants и типы (`NSComparisonResult`, `NSRange`,
-  `NSInteger`, `NSStringEncoding` …) —
-  developer.apple.com/documentation/foundation в разделе
-  «Constants» / «Type Aliases».
-- `NSObject` (класс и протокол) —
-  developer.apple.com/documentation/objectivec/nsobject и
-  developer.apple.com/documentation/objectivec/nsobject-protocol
+- `NSObject` (класс) — developer.apple.com/documentation/objectivec/nsobject
+- `NSObject` (протокол) —
+  developer.apple.com/documentation/objectivec/nsobjectprotocol
 - `NSProxy` — developer.apple.com/documentation/foundation/nsproxy
-- Toll-Free Bridged Types — developer.apple.com →
-  «Toll-Free Bridged Types» (Core Foundation ↔ Foundation).
+- Toll-Free Bridged Types (Core Foundation ↔ Foundation) —
+  developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFDesignConcepts/Articles/tollFreeBridgedTypes.html
 - Механику `isa`, метаклассов и пересылки см. в главе 14 этой книги.
-</content>
-</invoke>

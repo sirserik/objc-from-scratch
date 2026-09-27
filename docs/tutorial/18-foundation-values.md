@@ -8,8 +8,8 @@
 
 Foundation закрывает всё это четвёркой классов-значений: `NSDate`,
 `NSData`, `NSURL` и `NSError` — плюс помощники вокруг них: `NSCalendar`,
-`NSDateComponents`, `NSDateFormatter`, `NSUUID`. В этой главе разберём
-каждый по методам, а в конце построим две живые задачи: «сколько дней
+`NSDateComponents`, `NSDateFormatter`, `NSUUID`. Разберём каждый по
+методам, а в конце построим две живые задачи: «сколько дней
 до дедлайна» и «прочитай текст из файла, а если файла нет — внятно
 сообщи об ошибке».
 
@@ -47,8 +47,9 @@ NSLog(@"сейчас: %@", now);
 ```
 
 Дата печатается в формате UTC (`+0000`) — всемирное время, без поправки
-на твой часовой пояс. Если у тебя на часах 12:39, а тут 07:39 — это не
-ошибка, просто часовой пояс смещён на пять часов. Понятную локальную
+на твой часовой пояс. Примеры в главе запускались в Алматы (UTC+5):
+на часах было 12:39, а напечаталось 07:39. Это не ошибка, просто пояс
+смещён на пять часов; у тебя разница будет своя. Понятную локальную
 строку мы получим позже через форматтер.
 
 > **Отличие от Си.** В Си время живёт в `<time.h>`: `time_t` — это целое
@@ -128,7 +129,8 @@ NSDate *earlier = [now earlierDate:inDay];   /* вернёт более ранн
 `earlierDate:` отдаёт ту из двух дат, что раньше; есть парный
 `laterDate:`. Для проверки «это тот же момент?» — `isEqualToDate:`.
 
-Всё это вместе лежит в файле `code/18-date.m`. Реальный вывод (дата и
+Всё это лежит в файле `code/18-date.m` (там же — форматтер, до него
+дойдём ниже, его две строки вывода покажем там). Реальный вывод (дата и
 время будут твои — это «сейчас» твоего запуска):
 
 ```text
@@ -282,7 +284,9 @@ NSLog(@"отформатировано: %@", text);
   пробелы, двоеточия), вставляется как есть.
 - `locale` — локаль, набор национальных правил. Без неё форматтер берёт
   системную, и на чужой машине результат «поедет». Для стабильного
-  разбора фиксированных форматов задавай локаль явно.
+  разбора фиксированных форматов задавай локаль явно; для машинных
+  форматов (обмен с сервером, файлы) Apple советует особую локаль
+  `en_US_POSIX` — она не зависит от настроек пользователя.
 - `stringFromDate:` — превращает дату в строку по шаблону.
 
 ```text
@@ -307,15 +311,17 @@ NSLog(@"разобрано из строки: %@", parsed);
 1. **Создавать форматтер дорого.** Под капотом он поднимает тяжёлые
    локализационные данные. Если ты в цикле форматируешь тысячу дат, не
    создавай тысячу форматтеров — сделай один до цикла и переиспользуй.
-2. **`NSDateFormatter` не потокобезопасен** в смысле одновременного
-   изменения. Один форматтер на много потоков, которые меняют его
-   свойства, — источник плавающих багов. Либо свой форматтер на поток,
-   либо настрой один раз и больше не трогай его свойства.
+2. **Не меняй форматтер из разных потоков.** Форматировать даты одним
+   настроенным `NSDateFormatter` из нескольких потоков можно (с macOS
+   10.9 и iOS 7 это потокобезопасно), а вот менять его свойства
+   (`dateFormat`, `locale`), пока другие потоки им пользуются, — источник
+   плавающих багов. Настрой один раз и больше не трогай его свойства,
+   либо заведи свой форматтер на поток.
 
 ## NSData: мешок байтов
 
 `NSData` — это **неизменяемый блок сырых байтов**. Не текст, не число —
-just bytes: содержимое файла, картинка, ответ из сети. Изменяемый брат —
+просто байты: содержимое файла, картинка, ответ из сети. Изменяемый брат —
 `NSMutableData`.
 
 ### Строка ↔ байты
@@ -329,7 +335,8 @@ NSLog(@"строка заняла %lu байт", (unsigned long)[bytes length]);
 ```
 
 - `dataUsingEncoding:` — отдаёт байты строки в указанной кодировке.
-  `NSUTF8StringEncoding` — UTF-8, кодировка по умолчанию для всего.
+  `NSUTF8StringEncoding` — UTF-8, самая распространённая кодировка
+  текста сегодня.
 - `length` — сколько байтов в блоке. Возвращает `NSUInteger`, печатаем
   как `%lu` с приведением `(unsigned long)`.
 
@@ -337,9 +344,10 @@ NSLog(@"строка заняла %lu байт", (unsigned long)[bytes length]);
 строка заняла 21 байт
 ```
 
-Слов в строке 15 символов, а байтов 21 — потому что русские буквы в
-UTF-8 занимают по два байта. Это та же тема, что в главе 15: символ и
-байт — не одно и то же.
+В строке 15 символов, а байтов 21. Посчитаем: «Привет» — шесть русских
+букв по два байта каждая, это 12, плюс девять символов «, NSData!»,
+которые в UTF-8 занимают по одному байту. Итого 21. Это та же тема, что
+в главе 15: символ и байт — не одно и то же.
 
 Обратно — `initWithData:encoding:`:
 
@@ -347,6 +355,10 @@ UTF-8 занимают по два байта. Это та же тема, что
 NSString *back = [[NSString alloc] initWithData:bytes
                                        encoding:NSUTF8StringEncoding];
 NSLog(@"раскодировали обратно: %@", back);   /* Привет, NSData! */
+```
+
+```text
+раскодировали обратно: Привет, NSData!
 ```
 
 Кодировка при чтении должна совпадать с той, в которой записывали — иначе
@@ -369,7 +381,13 @@ NSData *decoded = [[NSData alloc] initWithBase64EncodedString:b64
 
 ```text
 base64: 0J/RgNC40LLQtdGCLCBOU0RhdGEh
+из base64: Привет, NSData!
 ```
+
+Двадцать один байт превратился в 28 символов текста — base64 всегда
+раздувает данные примерно на треть (каждые 3 байта кодируются четырьмя
+символами). Платим объёмом за возможность протащить любые байты там, где
+разрешён только текст.
 
 ### NSData и файл
 
@@ -415,8 +433,10 @@ NSLog(@"query:  %@", site.query);    /* q=1 */
 
 `URLWithString:` разбирает готовую строку-ссылку и раскладывает её на
 части: `scheme` (протокол), `host` (домен), `path` (путь), `query`
-(параметры после `?`). Если строка кривая (например, с пробелами),
-метод вернёт `nil` — проверяй результат.
+(параметры после `?`). Если строку не получается разобрать как URL,
+метод вернёт `nil` — проверяй результат. (Недопустимые символы вроде
+пробела начиная с macOS 14 и iOS 17 он уже не отвергает, а сам кодирует
+в `%20`; на старых системах такая строка давала `nil`.)
 
 ### URL файла
 
@@ -424,9 +444,10 @@ NSLog(@"query:  %@", site.query);    /* q=1 */
 
 ```objc
 NSURL *file = [NSURL fileURLWithPath:@"/tmp/notes/today.txt"];
-NSLog(@"file scheme: %@", file.scheme);          /* file */
-NSLog(@"имя файла:    %@", file.lastPathComponent);  /* today.txt */
-NSLog(@"расширение:   %@", file.pathExtension);      /* txt */
+NSLog(@"file scheme: %@", file.scheme);             /* file */
+NSLog(@"file path:   %@", file.path);   /* /tmp/notes/today.txt */
+NSLog(@"имя файла:    %@", file.lastPathComponent); /* today.txt */
+NSLog(@"расширение:   %@", file.pathExtension);     /* txt */
 ```
 
 `fileURLWithPath:` помечает адрес как **файловый** — у него схема `file`.
@@ -442,11 +463,40 @@ NSLog(@"составной путь: %@", child.path);   /* /tmp/notes/june.txt 
 нужную косую черту — лучше, чем склеивать строки руками и гадать, есть
 ли уже `/` на конце.
 
-**Почему два разных метода?** `URLWithString:` ждёт уже закодированную
-строку-ссылку и относится к ней как к URL; `fileURLWithPath:` берёт
-обычный путь файла, сам экранирует пробелы и спецсимволы и проставляет
-схему `file`. Подсунешь путь файла в `URLWithString:` — пробел в имени
-сломает разбор. Для файлов всегда `fileURLWithPath:`.
+Все три куска собраны в `code/18-url.m`; в конце файл ещё печатает
+UUID — о нём в следующем разделе. Запускаем:
+
+```text
+clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
+    code/18-url.m -o /tmp/t && /tmp/t
+```
+
+```text
+scheme: https
+host:   developer.apple.com
+path:   /documentation/foundation
+query:  q=1
+file scheme: file
+file path:   /tmp/notes/today.txt
+имя файла:    today.txt
+расширение:   txt
+составной путь: /tmp/notes/june.txt
+UUID: 318506AF-0CC9-4967-9452-A9535DB7B901
+```
+
+Обрати внимание на `file path: /tmp/notes/today.txt` — свойство `path`
+отдаёт **обычный путь без схемы**, а не строку `file:///tmp/...`. Если
+нужна именно строка URL целиком, спрашивай `absoluteString`. Это частая
+путаница: `path` — для передачи в файловые API, `absoluteString` — для
+показа и хранения.
+
+**Почему два разных метода?** `URLWithString:` ждёт строку-ссылку и
+относится к ней как к URL; `fileURLWithPath:` берёт обычный путь файла,
+сам экранирует пробелы и спецсимволы и проставляет схему `file`.
+Подсунешь путь `@"/tmp/my notes/a.txt"` в `URLWithString:` — получишь
+URL **без схемы** (`scheme` вернёт `nil`), то есть не файловый адрес, и
+методы, которые ждут файловый URL, с ним работать откажутся. Для файлов
+всегда `fileURLWithPath:`.
 
 ## NSUUID: уникальный идентификатор
 
@@ -460,7 +510,7 @@ NSLog(@"UUID: %@", uuid.UUIDString);
 ```
 
 `+UUID` создаёт новый случайный идентификатор, `UUIDString` отдаёт его в
-виде строки. Каждый запуск — своя:
+виде строки. Каждый запуск — свой:
 
 ```text
 UUID: 4B78567C-21D7-4A54-A746-369FEE76E675
@@ -595,17 +645,18 @@ int main(void) {
         NSError *err = nil;
         NSInteger days = 0;
         if (daysUntil(past, &days, &err)) {
-            NSLog(@"до дедлайна %ld дней", (long)days);
+            NSLog(@"дней до дедлайна: %ld", (long)days);
         } else {
             NSLog(@"ошибка: %@", err.localizedDescription);
             NSLog(@"  домен: %@, код: %ld", err.domain, (long)err.code);
         }
 
         /* 2. Будущая дата → ждём число дней. */
-        NSDate *future = [NSDate dateWithTimeIntervalSinceNow:5 * 24 * 3600];
+        NSDate *future =
+            [NSDate dateWithTimeIntervalSinceNow:5 * 24 * 3600];
         NSError *err2 = nil;
         if (daysUntil(future, &days, &err2)) {
-            NSLog(@"до будущего дедлайна %ld дней", (long)days);
+            NSLog(@"дней до будущего дедлайна: %ld", (long)days);
         }
 
         /* 3. Чтение несуществующего файла. */
@@ -618,6 +669,8 @@ int main(void) {
             NSLog(@"чтение не удалось: %@", readErr.localizedDescription);
             NSLog(@"  домен: %@, код: %ld",
                   readErr.domain, (long)readErr.code);
+        } else {
+            NSLog(@"прочитали: %@", text);
         }
     }
     return 0;
@@ -631,18 +684,19 @@ int main(void) {
 ```text
 ошибка: Дедлайн уже в прошлом.
   домен: com.objcbook.deadline, код: 1
-до будущего дедлайна 4 дней
+дней до будущего дедлайна: 4
 чтение не удалось: The file “нет-такого.txt” couldn’t be opened because there is no such file.
   домен: NSCocoaErrorDomain, код: 260
 ```
 
-Заметь хитрость во второй строке: мы сдвинули дату ровно на пять суток
+Заметь хитрость в третьей строке: мы сдвинули дату ровно на пять суток
 вперёд, а календарь насчитал **4** полных дня. Дело в долях: пока шла
 программа, «сейчас» внутри `daysUntil` отщёлкало на доли секунды вперёд,
 и до цели осталось чуть меньше пяти полных суток. `NSCalendarUnitDay`
-считает **целые** дни и округляет вниз. Хочешь честных пять — задавай
-дедлайн как календарную дату на границе дня (как в `18-calendar.m`), а
-не интервалом в секундах.
+считает **целые** дни и округляет вниз. Хочешь честных пять — считай не
+моменты, а календарные дни: прогони обе даты через
+`[cal startOfDayForDate:]` (он вернёт полночь того же дня) и уже эти
+полуночи отдай в `components:fromDate:toDate:options:`.
 
 ## Проверяем
 
@@ -675,8 +729,9 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
   и только потом смотри ошибку.
 - **Пишешь в `*error`, не проверив `error != NULL`.** Вызвавший мог не
   захотеть ошибку и передать `NULL` — запись по нему уронит программу.
-- **Путаешь `URLWithString:` и `fileURLWithPath:`.** Путь файла с
-  пробелом в `URLWithString:` сломается. Для файлов — `fileURLWithPath:`.
+- **Путаешь `URLWithString:` и `fileURLWithPath:`.** Путь файла через
+  `URLWithString:` даст URL без схемы `file`, а не файловый адрес. Для
+  файлов — `fileURLWithPath:`.
 - **Раскодировал `NSData` не той кодировкой.** Записал в UTF-8, читаешь
   как что-то другое — получишь `nil` или кракозябры. Кодировки должны
   совпадать.
@@ -687,7 +742,7 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
    `dateByAddingTimeInterval:` и напечатай обе даты форматтером в виде
    `HH:mm`.
 2. Собери календарём дату своего дня рождения в этом году и через
-   `components:fromDate:toDate:` посчитай, сколько дней до него (или
+   `components:fromDate:toDate:options:` посчитай, сколько дней до него (или
    сколько прошло).
 3. Заведи один `NSDateFormatter` с форматом `yyyy-MM-dd` и в цикле
    отформатируй им пять дат подряд (например, пять ближайших дней). Один
@@ -726,12 +781,14 @@ Foundation — дальше он будет встречаться постоя�
 - `NSDate` — developer.apple.com/documentation/foundation/nsdate
 - `NSCalendar` — developer.apple.com/documentation/foundation/nscalendar
 - `NSDateComponents` — developer.apple.com/documentation/foundation/nsdatecomponents
-- `NSDateFormatter` — developer.apple.com/documentation/foundation/nsdateformatter
+- `NSDateFormatter` — developer.apple.com/documentation/foundation/dateformatter
 - `NSData` — developer.apple.com/documentation/foundation/nsdata
 - `NSURL` — developer.apple.com/documentation/foundation/nsurl
 - `NSError` — developer.apple.com/documentation/foundation/nserror
 - `NSUUID` — developer.apple.com/documentation/foundation/nsuuid
-- Date and Time Programming Guide — developer.apple.com/library →
-  «Date and Time Programming Guide» (NSDate, NSCalendar, форматтеры).
-- Error Handling Programming Guide — developer.apple.com/library →
-  «Error Handling Programming Guide» (паттерн NSError и NSError **).
+- Date and Time Programming Guide (NSDate, NSCalendar, форматтеры) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  DatesAndTimes/DatesAndTimes.html
+- Error Handling Programming Guide (паттерн NSError и NSError **) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  ErrorHandlingCocoa/ErrorHandling/ErrorHandling.html

@@ -28,7 +28,7 @@ int main(void) {
         /* --- NSMutableDictionary: изменяемый словарь --- */
         NSMutableDictionary *stock = [[NSMutableDictionary alloc] init];
         [stock setObject:@10 forKey:@"яблоко"];   /* метод */
-        stock[@"банан"] = @5;                      /* субскрипт-присваивание */
+        stock[@"банан"] = @5;                   /* субскрипт-присваивание */
         stock[@"слива"] = @3;
         NSLog(@"яблок на складе: %@", stock[@"яблоко"]);
 

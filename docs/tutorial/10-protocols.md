@@ -257,7 +257,8 @@ static double cartTotal(NSArray *cart) {
 ей безразлично, книга это или подписка, важно лишь, что объект умеет
 `title` и `price`. Шлёт оба сообщения, печатает строку, копит сумму.
 
-Вот весь файл `10-protocol.m`, `main` в нём такой:
+Все куски выше вместе с `main` и составляют файл `10-protocol.m`.
+`main` в нём такой:
 
 ```objc
 int main(void) {
@@ -291,7 +292,7 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 ./protocol
 ```
 
-Вывод (дата и числа будут свои):
+Вывод (префикс `NSLog` с датой и номерами опущен):
 
 ```text
 Book принял Sellable?         да
@@ -360,7 +361,13 @@ Subscription принял Sellable? да
 @end
 ```
 
-Запускаем — работает:
+Наивный вариант целиком лежит в `code/10-delegate-naive.m` — собери и
+запусти его, он честно работает:
+
+```text
+clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
+    code/10-delegate-naive.m -o naive && ./naive
+```
 
 ```text
 Downloader: качаю http://site.kz/file.txt ...
@@ -596,8 +603,24 @@ delegate;`. Почему `weak`, а не `strong`?
 следующего переключателя или до `@end`. Здесь `taskDidFinish:`
 обязателен, а `taskDidStart:` и `task:didProgress:` — нет.
 
+Сама задача устроена так же, как `Downloader`: имя и слабая ссылка на
+делегата.
+
+```objc
+@interface Task : NSObject
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, weak) id<TaskDelegate> delegate;
+- (instancetype)initWithName:(NSString *)name;
+- (void)run;
+@end
+```
+
+`initWithName:` пишется точно как у `Downloader` (`[super init]`, потом
+`_name = [name copy]`), а весь интерес — в методе `run`.
+
 Вот тонкость, без которой будет падение. Обязательный метод можно звать
-смело — он точно есть у делегата (компилятор за этим проследил).
+смело: если класс делегата его забыл, компилятор предупредил об этом ещё
+при сборке.
 А **опциональный метод сначала надо проверить**: вдруг делегат его не
 реализовал? Если послать сообщение, которого у объекта нет, программа
 упадёт с `unrecognized selector`. Спасает знакомый по главе 9
@@ -784,10 +807,22 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
   (delegate ↔ объект), и оба зависнут в памяти. Свойство `delegate`
   объявляй `weak`.
 - **Присвоил `weak`-делегату временный объект.** Строка `obj.delegate =
-  [[Watcher alloc] init];` под ARC опасна: у нового объекта нет сильного
-  владельца, `weak`-свойство его не держит — он умирает сразу, и делегат
-  становится `nil`. Держи делегата в отдельной сильной переменной (или
-  свойстве), как мы сделали с `quiet` и `chatty`.
+  [[Watcher alloc] init];` под ARC бесполезна: у нового объекта нет
+  сильного владельца, `weak`-свойство его не держит — он умирает
+  немедленно, и `obj.delegate` оказывается `nil`. Хорошая новость в том,
+  что компилятор это видит:
+
+  ```text
+  warning: assigning retained object to weak property; object will be
+        released after assignment [-Warc-unsafe-retained-assign]
+     11 |         obj.delegate = [[Watcher alloc] init];
+        |                      ^ ~~~~~~~~~~~~~~~~~~~~~~
+  ```
+
+  «object will be released after assignment» — буквально «объект будет
+  освобождён сразу после присваивания». Запусти такой код, и печать
+  делегата даст `(null)`. Держи делегата в отдельной сильной переменной
+  (или свойстве), как мы сделали с `quiet` и `chatty`.
 - **Передал в `conformsToProtocol:` голое имя.** Нужен `@protocol(Name)`,
   а не `Name`: имя протокола само по себе не значение, его надо
   «опредметить» обёрткой `@protocol(...)`.
@@ -845,11 +880,14 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 ## Документация Apple
 
 - Programming with Objective-C → **Working with Protocols** — объявление
-  протоколов, `@required`/`@optional`, `id<Protocol>`, делегирование,
-  developer.apple.com/library → «Programming with Objective-C».
+  протоколов, `@required`/`@optional`, `id<Protocol>`, делегирование —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  ProgrammingWithObjectiveC/WorkingwithProtocols/WorkingwithProtocols.html
 - `NSObject` (протокол) — `conformsToProtocol:`, `respondsToSelector:`,
   developer.apple.com/documentation/objectivec/nsobjectprotocol
 - Cocoa Core Competencies → **Delegation** — паттерн делегирования и его
-  роль в Cocoa, developer.apple.com/library → «Delegation».
+  роль в Cocoa —
+  developer.apple.com/library/archive/documentation/General/Conceptual/
+  DevPedia-CocoaCore/Delegation.html
 - `Protocol` — представление протокола как объекта,
   developer.apple.com/documentation/objectivec/protocol

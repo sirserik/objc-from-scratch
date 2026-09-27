@@ -178,8 +178,8 @@ Objective-C-кода. Их не переписывают одним движен
 
 **Понимание системы.** Foundation, AppKit, многое в UIKit написаны на
 Objective-C. Когда из Swift ты дёргаешь привычный API, под ним часто
-работает objc-механика. Знать её — значит понимать платформу на самом
-деле, а не только её современный фасад.
+работает objc-механика. Знать её — значит понимать платформу
+по-настоящему, а не только её современный фасад.
 
 **Runtime-трюки.** Swizzling, динамическая диспетчеризация, интроспекция —
 там, где нужно влезть глубже обычного, дорога ведёт в Objective-C-runtime,
@@ -225,39 +225,43 @@ Objective-C. Когда из Swift ты дёргаешь привычный API,
 
 **Язык:**
 
-- Programming with Objective-C — developer.apple.com → «Programming with
-  Objective-C» (объекты, сообщения, свойства, протоколы, категории,
-  блоки — общее введение в язык).
-- Objective-C Feature Availability Index — developer.apple.com (что в
-  какой версии языка появилось).
+- Programming with Objective-C (объекты, сообщения, свойства, протоколы,
+  категории, блоки — общее введение в язык) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/Introduction/Introduction.html
+- Objective-C Feature Availability Index (что в какой версии языка
+  появилось) —
+  developer.apple.com/library/archive/releasenotes/ObjectiveC/ObjCAvailabilityIndex/index.html
 
 **Runtime:**
 
-- Objective-C Runtime Programming Guide — developer.apple.com →
-  «Objective-C Runtime Programming Guide» (Messaging, Dynamic Method
-  Resolution, Forwarding).
-- Objective-C Runtime (API reference) —
-  developer.apple.com/documentation/objectivec (`object_getClass`,
+- Objective-C Runtime Programming Guide (Messaging, Dynamic Method
+  Resolution, Forwarding) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Introduction/Introduction.html
+- Objective-C Runtime (API reference: `object_getClass`,
   `class_getName`, `class_copyMethodList`, `class_addMethod`,
-  `method_exchangeImplementations`, `sel_getName`).
+  `method_exchangeImplementations`, `sel_getName`) —
+  developer.apple.com/documentation/objectivec
 
 **Память:**
 
-- Advanced Memory Management Programming Guide — developer.apple.com
-  (полная модель владения: `retain`/`release`/`autorelease`, пулы).
-- Transitioning to ARC Release Notes — developer.apple.com (что делает
-  ARC, `__strong`/`__weak`/`__unsafe_unretained`, циклы удержания).
+- Advanced Memory Management Programming Guide (полная модель владения:
+  `retain`/`release`/`autorelease`, пулы) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MemoryMgmt/Articles/MemoryMgmt.html
+- Transitioning to ARC Release Notes (что делает ARC,
+  `__strong`/`__weak`/`__unsafe_unretained`, циклы удержания) —
+  developer.apple.com/library/archive/releasenotes/ObjectiveC/RN-TransitioningToARC/Introduction/Introduction.html
 
 **Foundation:**
 
-- Foundation — developer.apple.com/documentation/foundation (корень всех
-  справочников по классам Foundation).
+- Foundation (корень всех справочников по классам Foundation) —
+  developer.apple.com/documentation/foundation
 - `NSObject` — developer.apple.com/documentation/objectivec/nsobject
 - `NSString` — developer.apple.com/documentation/foundation/nsstring
-- `NSArray` / `NSDictionary` / `NSSet` —
-  developer.apple.com/documentation/foundation (коллекции).
-- Collections Programming Topics — developer.apple.com/library (массивы,
-  словари, множества и предикаты одним обзором).
+- `NSArray` — developer.apple.com/documentation/foundation/nsarray
+  (`NSDictionary`, `NSSet` — соседние страницы того же справочника).
+- Collections Programming Topics (массивы, словари, множества одним
+  обзором) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Collections/Collections.html
 
 **Дальше по экосистеме:**
 
@@ -268,10 +272,11 @@ Objective-C. Когда из Swift ты дёргаешь привычный API,
 
 **Мост к Swift:**
 
-- The Swift Programming Language — docs.swift.org (официальная книга про
-  язык Swift, твой следующий шаг).
-- Swift and Objective-C in the Same Project — developer.apple.com (как
-  два языка живут в одном проекте; мы это разбирали в главе 23).
+- The Swift Programming Language — docs.swift.org/swift-book (официальная
+  книга про язык Swift, твой следующий шаг).
+- Importing Objective-C into Swift (как два языка живут в одном проекте;
+  мы это разбирали в главе 23) —
+  developer.apple.com/documentation/swift/importing-objective-c-into-swift
 
 Из классики — не как обязаловку, а по-человечески — стоит назвать книги
 Аарона Хиллегасса по Cocoa и Objective-C: они учили целое поколение

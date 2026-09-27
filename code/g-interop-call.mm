@@ -5,6 +5,7 @@
 //   clang++ -ObjC++ -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 //       g-interop-call.mm -o /tmp/t && /tmp/t
 #import <Foundation/Foundation.h>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -32,8 +33,9 @@ int main() {
     std::vector<std::string> raw{"  привет  ", "Objective-C++", "  mix  "};
     for (const std::string &item : raw) {
         std::string out = normalize(item);
-        // std::cout не годится для кириллической ширины — печатаем длину
-        // в Unicode-символах, которую посчитал именно ObjC-runtime.
+        // out.size() посчитал бы БАЙТЫ UTF-8 (у «ПРИВЕТ» их 12). Длину
+        // в символах берём у NSString: -length считает UTF-16-единицы,
+        // для кириллицы и латиницы это и есть символы.
         printf("'%s' -> '%s' (len=%zu)\n",
                item.c_str(), out.c_str(), objcLength(out));
     }

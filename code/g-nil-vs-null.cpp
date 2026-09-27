@@ -2,6 +2,7 @@
 // Поэтому ПЕРЕД вызовом надо проверить указатель руками.
 // Сборка:
 //   clang++ -std=c++17 -Wall -Wextra -O2 g-nil-vs-null.cpp -o /tmp/t && /tmp/t
+#include <cctype>
 #include <iostream>
 #include <string>
 
@@ -10,7 +11,9 @@ struct Greeter {
     std::size_t length() const { return name.size(); }
     std::string upper() const {
         std::string r = name;
-        for (char &c : r) c = static_cast<char>(std::toupper(c));
+        for (char &c : r)   // toupper ждёт unsigned char, иначе UB
+            c = static_cast<char>(
+                std::toupper(static_cast<unsigned char>(c)));
         return r;
     }
 };

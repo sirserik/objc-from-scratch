@@ -17,8 +17,9 @@ int main(void) {
         NSLog(@"base64: %@", b64);
         NSData *decoded = [[NSData alloc] initWithBase64EncodedString:b64
                                                              options:0];
-        NSString *fromB64 = [[NSString alloc] initWithData:decoded
-                                                  encoding:NSUTF8StringEncoding];
+        NSString *fromB64 =
+            [[NSString alloc] initWithData:decoded
+                                  encoding:NSUTF8StringEncoding];
         NSLog(@"из base64: %@", fromB64);
 
         /* Записать байты в файл и прочитать их обратно. */

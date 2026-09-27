@@ -20,7 +20,7 @@ int main(void) {
         dispatch_queue_t guard =
             dispatch_queue_create("results.guard", DISPATCH_QUEUE_SERIAL);
 
-        NSLog(@"запускаем %lu загрузок параллельно",
+        NSLog(@"запускаем параллельно загрузок: %lu",
               (unsigned long)names.count);
 
         for (NSString *name in names) {
@@ -34,7 +34,7 @@ int main(void) {
         // Ждём, пока ВСЕ задачи группы завершатся (блокируем main).
         dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
 
-        NSLog(@"все загрузки завершены, собрано %lu результатов",
+        NSLog(@"все загрузки завершены, собрано результатов: %lu",
               (unsigned long)results.count);
         for (NSString *r in results) {
             NSLog(@"  - %@", r);

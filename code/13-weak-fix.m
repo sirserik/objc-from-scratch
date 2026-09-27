@@ -13,7 +13,7 @@
 
 @interface Child : NSObject
 @property (nonatomic, copy) NSString *name;
-@property (nonatomic, weak) Parent *parent;    /* WEAK: не владеет, нет цикла */
+@property (nonatomic, weak) Parent *parent;    /* WEAK: не владеет */
 @end
 
 @implementation Parent
@@ -49,7 +49,8 @@ int main(void) {
             Parent *temp = [Parent new];
             temp.name = @"Времянка";
             observer.parent = temp;   /* weak-ссылка на temp */
-            NSLog(@"пока temp жив: observer.parent = %@", observer.parent.name);
+            NSLog(@"пока temp жив: observer.parent = %@",
+                  observer.parent.name);
         }   /* temp выходит из видимости и умирает */
         /* weak-ссылка сама стала nil — висячего указателя НЕТ */
         NSLog(@"temp умер: observer.parent = %@", observer.parent);

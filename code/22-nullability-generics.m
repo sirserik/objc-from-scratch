@@ -30,7 +30,8 @@ typedef NS_OPTIONS(NSUInteger, AccessRights) {
 
 /* Дженерик-коллекции: компилятор знает тип элементов. */
 @property (nonatomic, strong) NSMutableArray<NSString *> *skills;
-@property (nonatomic, strong) NSDictionary<NSString *, NSNumber *> *salaryByYear;
+@property (nonatomic, strong)
+    NSDictionary<NSString *, NSNumber *> *salaryByYear;
 
 /* Назначенный инициализатор: только через него настраиваем объект. */
 - (instancetype)initWithName:(NSString *)name

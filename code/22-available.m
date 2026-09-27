@@ -23,7 +23,8 @@ int main(void) {
         /* Современная замена ISO-8601 даты появилась в macOS 10.12.
            Проверяем доступность, прежде чем создавать форматтер. */
         if (@available(macOS 10.12, *)) {
-            NSISO8601DateFormatter *fmt = [[NSISO8601DateFormatter alloc] init];
+            NSISO8601DateFormatter *fmt =
+                [[NSISO8601DateFormatter alloc] init];
             NSString *now = [fmt stringFromDate:[NSDate date]];
             NSLog(@"сейчас по ISO-8601: %@", now);
         } else {

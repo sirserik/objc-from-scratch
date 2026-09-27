@@ -100,4 +100,40 @@ header-includes: |
   \newunicodechar{┴}{{\symbolfont ┴}}
   \newunicodechar{┼}{{\symbolfont ┼}}
   \newunicodechar{▶}{{\symbolfont ▶}}
+  \newunicodechar{↔}{{\symbolfont ↔}}
+  \newunicodechar{⇄}{{\symbolfont ⇄}}
+  \newunicodechar{⌘}{{\symbolfont ⌘}}
+  \newunicodechar{▲}{{\symbolfont ▲}}
+  \newunicodechar{▼}{{\symbolfont ▼}}
+  \newunicodechar{►}{{\symbolfont ►}}
+  \newfontfamily\tengefont{Helvetica}
+  \newunicodechar{₸}{{\tengefont ₸}}
+  \newfontfamily\emojifont{Noto Emoji}
+  \newunicodechar{🍎}{{\emojifont 🍎}}
+  \newunicodechar{👋}{{\emojifont 👋}}
+  \newunicodechar{🇰}{{\emojifont 🇰}}
+  \newunicodechar{🇿}{{\emojifont 🇿}}
+  ```{=latex}
+  % Адреса developer.apple.com/... и селекторы a:b:c: без пробелов
+  % иначе не переносятся и вылезают за поля: разрешаем разрыв после
+  % «/», «:» и «.» (листинги набираются построчно, их это не касается).
+  \XeTeXinterchartokenstate=1
+  \newXeTeXintercharclass\breakafter
+  \XeTeXcharclass 47=\breakafter
+  \XeTeXcharclass 58=\breakafter
+  \XeTeXcharclass 46=\breakafter
+  \XeTeXinterchartoks\breakafter 0 = {\allowbreak}
+  \XeTeXcharclass 95=\breakafter
+  % Длинные имена в camelCase: крайний случай — разрыв перед заглавной.
+  \newXeTeXintercharclass\lowerlat
+  \newXeTeXintercharclass\upperlat
+  \count255=97 \loop \XeTeXcharclass\count255=\lowerlat
+    \ifnum\count255<122 \advance\count255 1 \repeat
+  \count255=65 \loop \XeTeXcharclass\count255=\upperlat
+    \ifnum\count255<90 \advance\count255 1 \repeat
+  \XeTeXinterchartoks\lowerlat\upperlat = {\penalty3000 }
+  \XeTeXinterchartoks\breakafter\lowerlat = {\allowbreak}
+  \XeTeXinterchartoks\breakafter\upperlat = {\allowbreak}
+  \setlength{\emergencystretch}{6em}
+  ```
 ---

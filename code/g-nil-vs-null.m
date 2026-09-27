@@ -21,7 +21,7 @@ int main(void) {
 
         NSString *real = @"hello";
         NSLog(@"real length   = %lu", (unsigned long)[real length]);
-        NSLog(@"real upper     = %@", [real uppercaseString]);
+        NSLog(@"real upper    = %@", [real uppercaseString]);
     }
     return 0;
 }

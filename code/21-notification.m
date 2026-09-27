@@ -31,7 +31,8 @@ static NSString *const TickNotification = @"TickNotification";
 }
 
 - (void)dealloc {
-    // Обязательно отписываемся, иначе центр пошлёт сообщение мёртвому.
+    // С macOS 10.11/iOS 9 центр сам забывает умерших подписчиков,
+    // но явная отписка — хорошая привычка (см. разбор ниже).
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     NSLog(@"   Display освобождён, отписался");
 }
@@ -80,7 +81,7 @@ int main(void) {
         [[NSRunLoop currentRunLoop]
             runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
 
-        NSLog(@"готово: Display видел %ld тиков", (long)display.seen);
+        NSLog(@"готово: Display видел тиков: %ld", (long)display.seen);
     }
     return 0;
 }

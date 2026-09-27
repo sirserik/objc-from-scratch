@@ -14,7 +14,7 @@ int main(void) {
         NSNumber *b = [NSNumber numberWithInteger:(NSInteger)small];
         NSLog(@"маленькое 5:  a == b (указатели)? %@   класс=%@",
               (a == b) ? @"да" : @"нет", [a class]);
-        NSLog(@"   a=%p  b=%p  (адрес обфусцирован, меняется при запуске)",
+        NSLog(@"   a=%p  b=%p  (свой в каждом запуске)",
               (__bridge void *)a, (__bridge void *)b);
 
         /* Большое число в указатель не влезает -> настоящий объект в куче.

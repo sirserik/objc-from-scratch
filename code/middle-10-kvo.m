@@ -6,7 +6,8 @@
 
 @interface Account : NSObject {
 @public
-    NSInteger _rawBalance;   /* публичный ivar для прямого доступа */
+    NSInteger _balance;   /* тот самый ivar, где свойство хранит
+                             значение; @public — для прямого доступа */
 }
 @property (nonatomic) NSInteger balance;
 @end
@@ -42,8 +43,9 @@ int main(void) {
         acc.balance = 250;       /* и ещё одно */
 
         NSLog(@"--- прямое изменение ivar (в обход сеттера) ---");
-        acc->_rawBalance = 999;  /* НЕ уведомляет: KVO не видит */
-        NSLog(@"_rawBalance стал 999, но observe не вызвался");
+        acc->_balance = 999;     /* НЕ уведомляет: KVO не видит */
+        NSLog(@"balance стал %ld, но observe не вызвался",
+              (long)acc.balance);
 
         /* снять наблюдателя ОБЯЗАТЕЛЬНО до смерти объектов */
         [acc removeObserver:w forKeyPath:@"balance"];

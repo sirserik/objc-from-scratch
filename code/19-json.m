@@ -31,7 +31,7 @@ int main(void) {
         }
         NSArray *fromPlist = [NSArray arrayWithContentsOfURL:plistURL
                                                        error:&err];
-        NSLog(@"plist: прочитали %lu задач, первая: %@",
+        NSLog(@"plist: прочитали задач: %lu, первая: %@",
               (unsigned long)fromPlist.count,
               fromPlist.firstObject[@"title"]);
 

@@ -10,7 +10,7 @@ static BOOL daysUntil(NSDate *target, NSInteger *outDays, NSError **error) {
     NSDate *now = [NSDate date];
 
     if ([target compare:now] == NSOrderedAscending) {
-        if (error) {
+        if (error) {                       /* вызвавшему ошибка нужна? */
             NSDictionary *info = @{
                 NSLocalizedDescriptionKey: @"Дедлайн уже в прошлом."
             };
@@ -18,45 +18,42 @@ static BOOL daysUntil(NSDate *target, NSInteger *outDays, NSError **error) {
                                          code:1
                                      userInfo:info];
         }
-        return NO;            /* провал: вернули NO + заполнили error */
+        return NO;                         /* провал: NO + заполнили error */
     }
 
     NSDateComponents *diff = [cal components:NSCalendarUnitDay
-                                    fromDate:now
-                                      toDate:target
-                                     options:0];
-    if (outDays) {
-        *outDays = diff.day;
-    }
-    return YES;              /* успех: вернули YES, error не трогали */
+                                    fromDate:now toDate:target options:0];
+    if (outDays) { *outDays = diff.day; }
+    return YES;                            /* успех: YES, error не трогаем */
 }
 
 int main(void) {
     @autoreleasepool {
-        /* 1. Потребляем СВОЮ ошибку. Дата в прошлом → ждём провал. */
+        /* 1. Дата в прошлом → ждём ошибку. */
         NSDate *past = [NSDate dateWithTimeIntervalSinceNow:-3600];
         NSError *err = nil;
         NSInteger days = 0;
         if (daysUntil(past, &days, &err)) {
-            NSLog(@"до дедлайна %ld дней", (long)days);
+            NSLog(@"дней до дедлайна: %ld", (long)days);
         } else {
             NSLog(@"ошибка: %@", err.localizedDescription);
-            NSLog(@"  домен: %@, код: %ld",
-                  err.domain, (long)err.code);
+            NSLog(@"  домен: %@, код: %ld", err.domain, (long)err.code);
         }
 
-        /* Будущая дата → успех. */
-        NSDate *future = [NSDate dateWithTimeIntervalSinceNow:5 * 24 * 3600];
+        /* 2. Будущая дата → ждём число дней. */
+        NSDate *future =
+            [NSDate dateWithTimeIntervalSinceNow:5 * 24 * 3600];
         NSError *err2 = nil;
         if (daysUntil(future, &days, &err2)) {
-            NSLog(@"до будущего дедлайна %ld дней", (long)days);
+            NSLog(@"дней до будущего дедлайна: %ld", (long)days);
         }
 
-        /* 2. Потребляем ЧУЖУЮ ошибку: читаем заведомо несуществующий файл. */
+        /* 3. Чтение несуществующего файла. */
         NSError *readErr = nil;
-        NSString *text = [NSString stringWithContentsOfFile:@"/tmp/нет-такого.txt"
-                                                   encoding:NSUTF8StringEncoding
-                                                      error:&readErr];
+        NSString *text =
+            [NSString stringWithContentsOfFile:@"/tmp/нет-такого.txt"
+                                      encoding:NSUTF8StringEncoding
+                                         error:&readErr];
         if (text == nil) {
             NSLog(@"чтение не удалось: %@", readErr.localizedDescription);
             NSLog(@"  домен: %@, код: %ld",

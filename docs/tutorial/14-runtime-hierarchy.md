@@ -56,7 +56,7 @@ Foundation:
 указатель на класс этого объекта. Само имя «isa» читается как «is a» —
 «является»: `rex` *is a* `Dog`, rex является собакой.
 
-Упрощённо объект `NSObject` в памяти выглядит так:
+Упрощённо объект в памяти выглядит так:
 
 ```text
 объект rex в памяти:
@@ -69,8 +69,17 @@ Foundation:
 
 Раз `isa` — это просто поле, его можно прочитать. Высокоуровневое
 сообщение `[rex class]` (см. главу 9) и низкоуровневая функция runtime
-`object_getClass(rex)` делают одно и то же: возвращают значение поля
-`isa`. Проверим, что это буквально один и тот же указатель.
+`object_getClass(rex)` обычно дают одно и то же: класс из поля `isa`.
+Проверим, что это буквально один и тот же указатель.
+
+Оговорка на будущее. «Первое поле — указатель на класс» — модель,
+которой учит документация Apple, и думать о `isa` так удобно. В
+современном 64-битном runtime в это слово памяти заодно упакованы
+служебные биты (например, часть счётчика ссылок), поэтому читать его
+руками бессмысленно: класс из него достаёт `object_getClass`. По нашему
+эксперименту на Intel-маке сырое значение первого слова `rex` было
+`0x11d800104d63261`, а адрес класса — `0x104d63260`: младшие разряды
+совпадают, остальное — служебные биты.
 
 ```objc
 #import <Foundation/Foundation.h>
@@ -115,7 +124,7 @@ int main(void) {
   класса, ровно как `Dog *` хранит адрес объекта.
 - `object_getClass(rex)` — функция из `<objc/runtime.h>`. Принимает
   любой объект, возвращает его `isa`, то есть класс. Это и есть «прочитать
-  первое поле структуры».
+  первое поле структуры» — с учётом упакованных битов из оговорки выше.
 - `class_getName(c)` — принимает `Class`, возвращает **си-строку**
   (`const char *`) с именем класса. Поэтому печатаем через `%s`, а не
   `%@`: это обычный массив байтов, а не `NSString`.
@@ -133,6 +142,9 @@ int main(void) {
 clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
       code/14-isa.m -o t && ./t
 ```
+
+Здесь и дальше в главе префикс `NSLog` (дата, время, имя программы)
+в выводах опущен, а адреса у тебя будут свои:
 
 ```text
 [rex class]          = Dog
@@ -282,9 +294,9 @@ Dog(meta) — метакласс? да
 - `isa` класса `Dog` = `...170`, а `isa` класса `Animal` = `...120`. Это
   адреса их метаклассов: у каждого класса свой метакласс.
 - `isa` **всех** метаклассов одинаков: `0x7ff84d568530`. Это адрес
-  **корневого метакласса** — метакласса `NSObject`. Сюда `isa` метакласса
-  `NSObject` указывает на самого себя (`isa корневого метакласса == он
-  сам? да`). Цепочка `isa` замкнулась.
+  **корневого метакласса** — метакласса `NSObject`. А сам метакласс
+  `NSObject` своим `isa` указывает на себя же (`isa корневого метакласса
+  == он сам? да`). Цепочка `isa` замкнулась.
 - `superclass` метакласса `Dog` = `Animal`. Runtime тут
   печатает имя через `class_getSuperclass`, и для метакласса это
   метакласс родителя — но имя у метакласса то же, что у класса, поэтому в
@@ -310,32 +322,33 @@ NSObject` и один объект `rex` класса `Dog`. Сплошные с
 пунктирные `superclass`.
 
 ```text
-        ИНСТАНСЫ          КЛАССЫ                 МЕТАКЛАССЫ
-                                       isa
-   +-------+   isa   +----------+   ----------> +---------------+
-   |  rex  |-------->|   Dog    |               |   Dog meta    |
-   +-------+         +----------+               +---------------+
-                          :                           :
-                  super   :                   super   :
-                          v                           v
-                     +----------+   isa     +---------------+
-                     |  Animal  |---------->|  Animal meta  |
-                     +----------+           +---------------+
-                          :                       :
-                  super   :               super   :
-                          v                       v
-                     +----------+   isa  +-------------------+
-                     | NSObject |------->|  NSObject meta    |<--+
-                     +----------+        |  (root metaclass) |   | isa
-                          :              +-------------------+---+
-                  super   :                       :        (сам на себя)
-                          v               super    :
-                        (nil)                       :
-                          ^                          v
-                          +--------------------------+
-                          superclass корневого метакласса
-                                  -> NSObject (класс)
+  ЭКЗЕМПЛЯР        КЛАССЫ                  МЕТАКЛАССЫ
+
+ +-------+  isa  +----------+   isa   +--------------------+
+ |  rex  |------>|   Dog    |-------->|  Dog meta          |
+ +-------+       +----------+         |  isa -> root meta  |
+                      :               +--------------------+
+                super :                     : super
+                      v                     v
+                 +----------+   isa   +--------------------+
+                 |  Animal  |-------->|  Animal meta       |
+                 +----------+         |  isa -> root meta  |
+                      :               +--------------------+
+                super :                     : super
+                      v                     v
+                 +----------+   isa   +--------------------+
+                 | NSObject |-------->|  NSObject meta     |
+                 +----------+         |  (root meta)       |
+                   :    ^             |  isa -> сам себя   |
+             super :    :             +--------------------+
+                   v    :                   : super
+                 (nil)  +...................+
 ```
+
+Стрелки `isa` из метаклассов в корневой метакласс вписаны прямо в
+прямоугольники, чтобы схема не превратилась в паутину. Нижняя пунктирная
+линия — `superclass` корневого метакласса: он ведёт обратно в **класс**
+`NSObject`.
 
 Прочитаем по стрелкам, медленно — это карта всего runtime:
 
@@ -357,9 +370,11 @@ NSObject` и один объект `rex` класса `Dog`. Сплошные с
 Зачем последняя стрелка. Когда ты шлёшь сообщение **класса**
 (`[Dog new]`), runtime ищет `+`-метод по метаклассовой ветке вверх:
 `Dog meta -> Animal meta -> NSObject meta`. Если не нашёл и там — поиск
-переходит в класс `NSObject` и продолжается по его `-`-методам. Поэтому
-классам доступны такие методы `NSObject`, как `description` или
-`respondsToSelector:`, — они находятся именно через этот «мостик».
+переходит в класс `NSObject` и продолжается по его `-`-методам.
+Проверить мостик просто: добавь категорией (глава 11) метод экземпляра
+`- (void)hi` в `NSObject` и пошли его **классу**: `[Dog hi]`. Метода
+класса `+hi` нет нигде, но вызов сработает — поиск через мостик найдёт
+`-hi` у класса `NSObject`, а `self` внутри будет классом `Dog`.
 
 Запомни короткую формулу: **`isa` отвечает на вопрос «какого я вида»**
 (объект -> класс -> метакласс), **`superclass` отвечает на вопрос «от
@@ -435,7 +450,8 @@ objc_msgSend(rex, @selector(speak));
   которая и есть тело метода. У всякой `IMP` первые два скрытых аргумента —
   `self` (получатель) и `_cmd` (селектор), а дальше параметры метода.
 - **Метод (`Method`)** — это **пара (`SEL`, `IMP`)**: имя сообщения и
-  адрес кода, который на него отвечает. Класс хранит таблицу таких пар.
+  адрес кода, который на него отвечает (плюс строка с кодировкой типов,
+  о ней в шаге 6). Класс хранит таблицу таких методов.
 
 Алгоритм `objc_msgSend` по шагам:
 
@@ -443,14 +459,15 @@ objc_msgSend(rex, @selector(speak));
 objc_msgSend(receiver, selector, аргументы...)
 
 1. receiver == nil?  -> ничего не делаем, возвращаем 0/nil. (см. главу 5)
-2. cls = receiver->isa                  (класс получателя)
-3. ищем selector в таблице методов cls
-      нашли  -> прыгаем на найденную IMP, передав self, _cmd, аргументы
-      не нашли -> cls = cls->superclass, повторяем шаг 3
-4. дошли до конца (superclass == nil, выше NSObject)?
-      -> запускаем механизм ПЕРЕСЫЛКИ (шаги 6–8 ниже)
-5. (ускорение) найденную пару (selector -> IMP) runtime кладёт в кэш
-   класса, чтобы в следующий раз не искать заново.
+2. cls = класс из receiver->isa
+3. смотрим в КЭШ cls: этот селектор уже вызывали?
+      да  -> сразу прыгаем на запомненную IMP (самый частый случай)
+4. ищем selector в таблице методов cls
+      нашли  -> кладём (selector -> IMP) в кэш класса получателя
+                и прыгаем на IMP, передав self, _cmd, аргументы
+      не нашли -> cls = cls->superclass, повторяем шаг 4
+5. дошли до конца (superclass == nil, выше NSObject)?
+      -> динамическое разрешение и ПЕРЕСЫЛКА (шаги 7–9 ниже)
 ```
 
 Картинка поиска для нашей тройки, если у `rex` зовём `speak`, а метод
@@ -478,8 +495,13 @@ objc_msgSend(receiver, selector, аргументы...)
 > может выполнить разный код в зависимости от того, какой объект лежит в
 > `obj` прямо сейчас. Этого Си не умеет в принципе.
 
-Можно ли вызвать `objc_msgSend` руками? Да, но осторожно: у неё нетривиальный
-тип, и под `-Wall` компилятор требует привести её к точной сигнатуре метода.
+Строка `objc_msgSend(rex, @selector(speak))` выше — это то, во что
+компилятор превращает скобки; сама по себе в таком виде она не
+соберётся. Можно ли вызвать `objc_msgSend` руками? Да, но осторожно: в
+SDK она объявлена как `void objc_msgSend(void)`, и прямой вызов с
+аргументами компилятор отвергает ошибкой `too many arguments to function
+call, expected 0, have 2`. Звать её можно, только приведя к точной
+сигнатуре метода.
 Поэтому в обычном коде мы её **не** дёргаем напрямую — за нас это делают
 квадратные скобки. А для интроспекции и динамики пользуемся
 высокоуровневыми функциями runtime, к которым и переходим.
@@ -627,8 +649,10 @@ Car отвечает на fly? нет
   поиск при вызове идёт вверх.
 - Загадочный `.cxx_destruct` в `Car`. Его добавил **ARC**: это
   автоматический «деструктор», который освобождает объектные поля (наш
-  `_brand`) при уничтожении объекта. Ты его не писал — это работа ARC,
-  и runtime честно показывает его в списке. Метка «по нашему эксперименту»:
+  `_brand`) при уничтожении объекта. Ты его не писал — здесь это работа
+  ARC, и runtime честно показывает его в списке. (Если у класса есть
+  поля C++-типов, компилятор заводит этот метод и без ARC — чтобы вызвать
+  их деструкторы; отсюда и `cxx` в имени.) Метка «по нашему эксперименту»:
   Apple не обещает имя `.cxx_destruct`, мы просто наблюдаем его в выводе.
 - Поле `_brand` с кодировкой типа `@"NSString"`.
 - `class_respondsToSelector` учёл наследование: `move` достался `Car` от
@@ -911,14 +935,18 @@ int main(void) {
 
 ```text
 *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
-reason: '-[Cat fly]: unrecognized selector sent to instance 0x600001524070'
+reason: '-[Cat fly]: unrecognized selector sent to instance 0x600003ad8070'
 *** First throw call stack:
 (
     0   CoreFoundation       __exceptionPreprocess + 241
     1   libobjc.A.dylib      objc_exception_throw + 62
     ...
 )
+libc++abi: terminating due to uncaught exception of type NSException
 ```
+
+(Первые две строки в терминале — одна длинная строка; колонку адресов
+в стеке мы убрали.)
 
 Расшифруй сообщение — оно очень информативно:
 
@@ -958,7 +986,7 @@ reason: '-[Cat fly]: unrecognized selector sent to instance 0x600001524070'
 
 @implementation Greeter (Swizzle)
 - (NSString *)my_hello {
-    NSString *original = [self my_hello];   /* после обмена это старый hello */
+    NSString *original = [self my_hello];   /* после обмена: старый hello */
     return [NSString stringWithFormat:@"[лог] %@!", original];
 }
 @end
@@ -1025,18 +1053,22 @@ int main(void) {
 
 ### Связь с KVO и тизер главы 20
 
-Подмена `isa` — не только ручной трюк. На ней Apple строит **KVO**
+Подменять можно не только реализации методов, но и сам `isa` объекта:
+функция runtime `object_setClass(obj, cls)` переселяет объект в другой
+класс. На этом Apple строит **KVO**
 (Key-Value Observing, наблюдение за значением по ключу). Когда ты
-начинаешь наблюдать за свойством объекта, runtime на лету создаёт
+начинаешь наблюдать за свойством объекта, Foundation на лету создаёт
 **динамический подкласс** этого объекта, переопределяет в нём сеттеры (а
 они шлют уведомления наблюдателям) и **подменяет `isa`** объекта на этот
 новый подкласс. Объект продолжает выглядеть как прежний класс (`-class`
 специально это маскирует), но его реальный `isa` теперь указывает на
-сгенерированный подкласс. Это и есть «isa-swizzling».
+сгенерированный подкласс (по нашему эксперименту для класса `Dog` он
+называется `NSKVONotifying_Dog`). Это и есть «isa-swizzling».
 
 Теперь, зная, что объект — это структура с полем `isa`, ты понимаешь, как
-такое вообще возможно: достаточно переписать первое поле объекта, и он
-начинает вести себя как другой класс. Подробно KVO разберём в главе 20 —
+такое вообще возможно: достаточно переписать класс в первом поле объекта
+(через `object_setClass`, а не руками — вспомни про упакованные биты), и
+он начинает вести себя как другой класс. Подробно KVO разберём в главе 20 —
 там этот фокус заиграет красками.
 
 ## Проверяем
@@ -1062,14 +1094,15 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 - `code/14-swizzle.m` — обмен реализациями через
   `method_exchangeImplementations`.
 
-Все шесть собираются **без предупреждений** под `-Wall -Wextra`. Время,
-имя программы и числа в скобках в твоём выводе будут свои — важна
-содержательная часть строк.
+Все шесть собираются **без предупреждений** под `-Wall -Wextra`. В
+выводах главы префикс `NSLog` опущен: у тебя перед каждой строкой будут
+дата, время, имя программы и числа в квадратных скобках, а адреса — свои.
+Важна содержательная часть строк.
 
 ## Частые ошибки
 
-- **Прямой вызов `objc_msgSend` без приведения типа.** Под `-Wall`
-  компилятор справедливо ругается: у `objc_msgSend` непростая сигнатура, и
+- **Прямой вызов `objc_msgSend` без приведения типа.** Компилятор
+  отвергает его ошибкой: в SDK `objc_msgSend` объявлена без параметров, и
   звать её надо, приведя к точному типу метода. В обычном коде её не
   трогают вовсе — пользуйся квадратными скобками или функциями runtime.
 - **Забыл `free` после `class_copy...`.** Функции с `copy` в имени
@@ -1105,9 +1138,11 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
    каждый.
 4. Преврати `Proxy` из `14-forwarding.m` в «логирующий прокси»: пусть он
    ещё и считает, сколько сообщений переслал, и печатает счётчик.
-5. В `14-swizzle.m` засвиззли `description` у своего класса так, чтобы он
-   возвращал текст в верхнем регистре. Проследи, что это не сломало
-   `NSLog(@"%@", obj)`.
+5. В `14-swizzle.m` сначала напиши классу `Greeter` собственный
+   `-description`, а потом засвиззли его так, чтобы он возвращал текст в
+   верхнем регистре. Проследи, что `NSLog(@"%@", obj)` печатает новый
+   текст. Подумай, почему без своего `-description` обмен задел бы
+   `description` самого `NSObject` — то есть всех объектов программы.
 6. Поймай `unrecognized selector` в свой код: оберни рискованный вызов в
    `@try { ... } @catch (NSException *e) { ... }` и напечатай `e.reason`
    вместо падения. (Исключения — обзорно; в проде так не «лечат» баги.)
@@ -1137,17 +1172,19 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 
 ## Документация Apple
 
-- Objective-C Runtime Programming Guide — developer.apple.com →
-  «Objective-C Runtime Programming Guide» (Messaging, Dynamic Method
-  Resolution, Forwarding).
-- Objective-C Runtime (API reference) — developer.apple.com/documentation/objectivec
-  (функции `object_getClass`, `class_getName`, `class_copyMethodList`,
-  `class_addMethod`, `method_exchangeImplementations`, `sel_getName`).
-- `NSObject` — developer.apple.com/documentation/objectivec/nsobject
-  (`class`, `superclass`, `isKindOfClass:`, `respondsToSelector:`,
-  `+resolveInstanceMethod:`, `-forwardingTargetForSelector:`,
-  `-forwardInvocation:`, `-doesNotRecognizeSelector:`).
-- `NSProxy` — developer.apple.com/documentation/foundation/nsproxy
-  (второй корневой класс, абстрактный суперкласс для прокси).
-- `NSInvocation` — developer.apple.com/documentation/foundation/nsinvocation
-  (упакованное сообщение для `-forwardInvocation:`).
+- Objective-C Runtime Programming Guide (Messaging, Dynamic Method
+  Resolution, Message Forwarding, Type Encodings) —
+  <https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Introduction/Introduction.html>
+- Objective-C Runtime (справочник функций `object_getClass`,
+  `class_getName`, `class_copyMethodList`, `class_addMethod`,
+  `method_exchangeImplementations`, `sel_getName`) —
+  <https://developer.apple.com/documentation/objectivec/objective-c-runtime>
+- `NSObject` (`class`, `superclass`, `isKindOfClass:`,
+  `respondsToSelector:`, `+resolveInstanceMethod:`,
+  `-forwardingTargetForSelector:`, `-forwardInvocation:`,
+  `-doesNotRecognizeSelector:`) —
+  <https://developer.apple.com/documentation/objectivec/nsobject-swift.class>
+- `NSProxy` (второй корневой класс, абстрактный суперкласс для прокси) —
+  <https://developer.apple.com/documentation/foundation/nsproxy>
+- `NSInvocation` (упакованное сообщение для `-forwardInvocation:`) —
+  <https://developer.apple.com/documentation/foundation/nsinvocation>

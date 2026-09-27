@@ -13,7 +13,7 @@
 
 @interface Child : NSObject
 @property (nonatomic, copy)   NSString *name;
-@property (nonatomic, strong) Parent *parent;  /* сильная ← вот она, проблема */
+@property (nonatomic, strong) Parent *parent;  /* сильная ← вот проблема */
 @end
 
 @implementation Parent
@@ -31,11 +31,11 @@ int main(void) {
         Child *kid = [Child new];
         kid.name = @"Дочь";
 
-        mom.child  = kid;    /* мама держит дочь  (+1 к счётчику kid) */
-        kid.parent = mom;    /* дочь держит маму  (+1 к счётчику mom) — цикл */
+        mom.child  = kid;    /* мама держит дочь (+1 к счётчику kid) */
+        kid.parent = mom;    /* дочь держит маму (+1 к счётчику mom): цикл */
 
         NSLog(@"выходим из блока — ждём два dealloc...");
-    }   /* mom и kid выходят из видимости, но держат друг друга → счётчики != 0 */
+    }   /* mom и kid вне видимости, но держат друг друга: счётчики != 0 */
 
     NSLog(@"блок закрыт. Видел dealloc выше? Нет. Это утечка памяти.");
     return 0;

@@ -24,12 +24,12 @@ int main(void) {
             @"@Astana2026",
             @"     ",
         ];
-        for (NSString *in in inputs) {
-            NSString *out = normalizeUsername(in);
+        for (NSString *input in inputs) {
+            NSString *out = normalizeUsername(input);
             if (out) {
-                NSLog(@"'%@' -> '%@'", in, out);
+                NSLog(@"'%@' -> '%@'", input, out);
             } else {
-                NSLog(@"'%@' -> ОТКЛОНЁН (пусто)", in);
+                NSLog(@"'%@' -> ОТКЛОНЁН (пусто)", input);
             }
         }
     }

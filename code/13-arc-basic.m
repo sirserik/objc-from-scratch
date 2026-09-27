@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 
 /* Тот же человек, но под ARC.
-   Ни retain, ни release, ни [super dealloc] — компилятор сам всё расставит. */
+   Ни retain, ни release, ни [super dealloc]: компилятор всё расставит сам. */
 
 @interface Person : NSObject
 @property (nonatomic, copy) NSString *name;

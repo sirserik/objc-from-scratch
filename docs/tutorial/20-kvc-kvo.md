@@ -18,7 +18,7 @@
 
 - Прочитаем и запишем свойство по строковому имени: `valueForKey:` и
   `setValue:forKey:`.
-- Поймём, что KVC ищет под капотом (геттер -> сеттер -> голый ivar).
+- Поймём, что KVC ищет под капотом (метод доступа -> голый ivar).
 - Пройдём по вложенным объектам через `valueForKeyPath:` (`@"address.city"`).
 - Применим KVC к массиву: соберём значения и посчитаем операторами
   `@count`, `@sum`, `@avg`, `@max`.
@@ -29,7 +29,8 @@
 - Докажем, что изменение через сеттер уведомление шлёт, а прямое
   присваивание ivar — нет.
 - Разберём ручные уведомления и `+automaticallyNotifiesObserversForKey:`.
-- Снимем наблюдателя (`removeObserver:`) и узнаем, что будет, если забыть.
+- Снимем наблюдателя (`removeObserver:`) и узнаем, что будет, если
+  забыть или снять дважды.
 
 ## Часть 1. KVC — доступ по строковому имени
 
@@ -103,7 +104,7 @@ NSLog(@"баланс как double = %.2f", [balance doubleValue]);
 через свойство: owner=Серик balance=1500.50
 ```
 
-Смотри на третью колонку второй строки: класс значения — `__NSCFNumber`.
+Смотри на вторую строку, в скобках: класс значения — `__NSCFNumber`.
 Это внутренняя реализация `NSNumber`. То есть `valueForKey:@"balance"`
 действительно вернул объект-обёртку, хотя в классе `balance` объявлен
 как голый `double`. Это **автоупаковка KVC** (см. главу 16): примитивы
@@ -124,21 +125,23 @@ NSLog(@"баланс как double = %.2f", [balance doubleValue]);
 
 Откуда `valueForKey:@"owner"` знает, как взять значение? Он не лезет
 сразу в память — он действует по строгому порядку поиска. Для чтения
-ключа `key` (упрощённо):
+ключа `key` (упрощённо; полный порядок — в Key-Value Coding Programming
+Guide, раздел Accessor Search Patterns):
 
 ```text
 [obj valueForKey:@"balance"]
    |
-   1. ищет геттер: -balance, потом -isBalance, -getBalance
+   1. ищет геттер: -getBalance, -balance, -isBalance, -_balance
    |      нашёл -> зовёт его, результат (если примитив) упаковывает
    2. нет геттера? и разрешён прямой доступ к ivar?
    |      ищет поле: _balance, потом _isBalance, balance, isBalance
    |      нашёл -> читает поле напрямую, упаковывает
    3. ничего не нашли -> -valueForUndefinedKey: -> исключение
+                          NSUnknownKeyException
 ```
 
 Для записи `setValue:forKey:` зеркально: сначала ищет сеттер
-`-setBalance:`, и только если его нет (и разрешён прямой доступ) — пишет
+`-setBalance:` (или `-_setBalance:`), и только если его нет (и разрешён прямой доступ) — пишет
 прямо в ivar `_balance`. Разрешение прямого доступа к ivar даёт метод
 класса `+accessInstanceVariablesDirectly` — по умолчанию он возвращает
 `YES`.
@@ -231,7 +234,9 @@ KVC раскрывается во всю силу на массивах. Два 
 **Первый: `valueForKey:` на массиве собирает значения.** Если послать
 `valueForKey:` не одиночному объекту, а `NSArray`, он применит ключ к
 **каждому** элементу и вернёт массив результатов. Возьмём корзину
-товаров:
+товаров. `Product` — простой класс со свойствами `NSString *title` и
+`double price` и фабричным методом `+title:price:`, который создаёт и
+заполняет товар (целиком — в `code/20-keypath.m`):
 
 ```objc
 NSArray<Product *> *cart = @[
@@ -255,7 +260,31 @@ NSLog(@"названия = %@", titles);
 Из массива из трёх `Product` мы одной строкой достали массив их названий.
 (Кириллица в выводе показана как `\U....` — так `NSArray` печатает
 вложенные строки в своём `description`; сами строки целые, это лишь форма
-лога.) Удобно для «вытащить из списка объектов список одного поля».
+лога. Если хочется читаемо — склей массив через
+`componentsJoinedByString:`, как мы делали в главе 12.) Удобно для
+«вытащить из списка объектов список одного поля».
+
+С числовым свойством то же самое, и вот тут видно кое-что интересное:
+
+```objc
+NSArray *prices = [cart valueForKeyPath:@"price"];
+NSLog(@"цены     = %@", prices);
+```
+
+```text
+цены     = (
+    3500,
+    9900,
+    1200
+)
+```
+
+Свойство `price` объявлено как `double` — примитив, не объект. Но в
+массив попали объекты: KVC **сам завернул** каждое число в `NSNumber`,
+потому что в коллекции примитив положить нельзя. Это общее правило KVC:
+на границе он упаковывает примитивы в `NSNumber`, а структуры — в
+`NSValue` (обе обёртки мы разбирали в главе 16). Именно поэтому чуть ниже
+`@sum.price` вернёт нам `NSNumber`, а не `double`.
 
 **Второй: операторы коллекций.** Это особые ключи, начинающиеся с `@`:
 `@count`, `@sum`, `@avg`, `@max`, `@min`, `@distinctUnionOfObjects` и
@@ -294,8 +323,11 @@ NSLog(@"@min.price  = %@", min);
 - `@"@max.price"` / `@"@min.price"` — наибольшее и наименьшее значение
   `price`.
 
-Все операторы возвращают **объект-число** (`NSNumber`/`NSDecimalNumber`),
-поэтому среднее мы печатаем через `[avg doubleValue]`. Это та же
+Все операторы возвращают **объект**, а не голое число: `@count` — это
+`NSNumber`, `@sum` и `@avg` по нашим экспериментам приходят как
+`NSDecimalNumber` (подкласс `NSNumber`), а `@max`/`@min` возвращают само
+значение свойства — здесь упакованный `NSNumber`. Поэтому среднее мы
+печатаем через `[avg doubleValue]`. Это та же
 автоупаковка: свойство `price` — `double`, а наружу приходит число-объект.
 
 Запусти `code/20-keypath.m` целиком — увидишь и key path, и оба приёма
@@ -322,7 +354,7 @@ KVC — не самоцель, это фундамент. На нём стоит
 
 1. **подписаться**: `addObserver:forKeyPath:options:context:`;
 2. **получать уведомления** в методе `observeValueForKeyPath:ofObject:change:context:`;
-3. **обязательно отписаться**: `removeObserver:forKeyPath:` (иначе крах).
+3. **обязательно отписаться**: `removeObserver:forKeyPath:context:`.
 
 ### Шаг 5. Подписываемся и ловим изменение
 
@@ -509,8 +541,12 @@ _balance = value;                          /* собственно измене�
 ```
 
 `willChangeValueForKey:` запоминает старое значение, `didChangeValueForKey:`
-сравнивает с новым и, если отличается, шлёт уведомление наблюдателям.
-Между ними — само изменение. Звать их надо парой и в этом порядке.
+берёт новое и шлёт уведомление наблюдателям. Сравнивать KVO не станет:
+даже если значение не поменялось, наблюдатель получит уведомление
+«5 -> 5» (мы проверили — так же ведёт себя и автоматический сеттер, если
+присвоить то же число). Хочешь молчать при равных значениях — проверь
+это сам до `willChange...`. Между парой — само изменение. Звать методы
+надо парой и в этом порядке.
 
 Чтобы автоматика не сработала вдобавок к ручной (двойное уведомление),
 для такого ключа её отключают, переопределив метод класса:
@@ -538,34 +574,45 @@ _balance = value;                          /* собственно измене�
 [acc removeObserver:w forKeyPath:@"balance" context:&kBalanceContext];
 ```
 
-Снять наблюдателя **обязательно**, пока оба объекта ещё живы. KVO не
-удерживает наблюдателя и не знает, когда тот умрёт. Если наблюдатель
-`Watcher` будет уничтожен, а подписка останется, то при следующем
-изменении `balance` runtime попытается отправить уведомление по
-**мёртвому адресу** — и программа упадёт с чем-то вроде:
+Документация Apple требует снимать наблюдателя, пока оба объекта ещё
+живы: KVO не удерживает наблюдателя. Долгие годы нарушение этого правила
+кончалось падением: `Watcher` уничтожен, подписка осталась, и при
+следующем изменении `balance` уведомление уходило по **мёртвому адресу**.
 
-```text
-*** -[Watcher observeValueForKeyPath:...]: message sent to deallocated
-instance 0x...
-```
+По нашим экспериментам на свежей macOS (26) падения уже нет: Foundation
+сам обнуляет ссылку на умершего наблюдателя, и уведомление просто никуда
+не уходит. Но это недокументированное поведение, на старых системах оно
+другое, а сама запись о подписке так и висит на объекте. Поэтому правило
+не меняется: подписался — отпишись.
 
 Снимай подписку там, где это логично: для долгоживущих объектов — в
 `dealloc` наблюдателя; в нашем коротком примере — прямо перед концом,
 пока `acc` и `w` оба на месте. Парность простая: на каждый `addObserver:`
-ровно один `removeObserver:`. Снять несуществующую подписку — тоже
-ошибка (исключение `NSRangeException`), так что не отписывайся дважды.
+ровно один `removeObserver:`. А вот снять несуществующую подписку —
+гарантированная ошибка на любой системе, исключение `NSRangeException`:
 
-### Современная альтернатива: блочный NSKeyValueObservation
+```text
+Cannot remove an observer <Watcher 0x...> for the key path "balance"
+from <Account 0x...> because it is not registered as an observer.
+```
+
+Так что не отписывайся дважды.
+
+### А как в Swift: NSKeyValueObservation
 
 У классического KVO есть болевые точки: строковый ключ (опечатку поймаешь
 только в рантайме), приёмник в отдельном методе вдали от подписки, ручной
-`removeObserver:`. Поэтому в современном Objective-C есть блочный вариант —
-метод `observeValueForKeyPath:options:changeHandler:`, возвращающий объект
-`NSKeyValueObservation`: обработчик задаётся **блоком** прямо на месте
-подписки (блоки — глава 12), а отписка происходит автоматически при
-уничтожении объекта-наблюдения. Механика под ним — тот же isa-swizzling.
-Но классический `addObserver:...` по-прежнему повсюду в существующем
-коде, поэтому понимать его обязательно.
+`removeObserver:`. В Swift их убрали: метод `observe(_:options:changeHandler:)`
+принимает проверяемый компилятором key path (`\.balance`) и замыкание, а
+возвращает объект `NSKeyValueObservation` — пока он жив, подписка
+действует, а при его уничтожении снимается сама. Механика под ним — тот
+же isa-swizzling.
+
+В Objective-C такого блочного API у Foundation **нет** (в заголовках SDK
+`NSKeyValueObservation` не встречается): здесь KVO — это только
+`addObserver:forKeyPath:options:context:` и `observeValueForKeyPath:...`,
+которые мы разобрали. Блочные обёртки над ними в проектах на Objective-C
+пишут сами или берут готовые сторонние библиотеки.
 
 ## Полная программа
 
@@ -602,17 +649,20 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 - **Меняешь ivar напрямую — наблюдатель молчит.** `_balance = x` в обход
   сеттера KVO не заметит. Внутри методов пиши `self.balance = x` или
   `setValue:forKey:`.
-- **Забыл `removeObserver:`.** Наблюдатель умер, подписка осталась —
-  следующее изменение шлёт сообщение мёртвому объекту и роняет программу.
-  Парность строгая: один `addObserver:` — один `removeObserver:`.
+- **Забыл `removeObserver:`.** Наблюдатель умер, подписка осталась. На
+  старых системах следующее изменение слало сообщение мёртвому объекту и
+  роняло программу; на свежей macOS, по нашим экспериментам, уже нет, но
+  документация по-прежнему требует отписки. Парность строгая: один
+  `addObserver:` — один `removeObserver:`.
 - **Отписался дважды или без подписки.** Исключение `NSRangeException`.
   Снимай подписку ровно один раз.
 - **Не сверяешь `context`.** Если на объект подписан и твой код, и
   суперкласс, без проверки `context` поймаешь чужие уведомления. Всегда
   передавай уникальный `context` и сверяй его, а чужое отдавай `super`.
 - **Опечатка в ключе.** `@"balanse"` соберётся, но в рантайме даст
-  `setValue:forUndefinedKey:` -> исключение: ключи — строки, компилятор
-  их не проверяет.
+  `setValue:forUndefinedKey:` -> исключение `NSUnknownKeyException`
+  («this class is not key value coding-compliant for the key balanse»):
+  ключи — строки, компилятор их не проверяет.
 - **Ждёшь `double`, а пришёл `NSNumber`.** И из `valueForKey:`, и из
   словаря `change` числа приходят упакованными — распаковывай через
   `doubleValue`/`intValue`.
@@ -636,9 +686,12 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
    уведомлениями (`willChangeValueForKey:`/`didChangeValueForKey:` +
    `+automaticallyNotifiesObserversForKey:` -> `NO`). Подпишись и проверь,
    что уведомление приходит ровно один раз.
-6. Намеренно убери `removeObserver:` из `20-kvo.m`, а наблюдателя `w`
-   заверни в отдельную область видимости, чтобы он умер раньше `acc`.
-   Поймай падение и прочитай его текст — потом узнаешь такую ошибку сразу.
+6. Намеренно продублируй в `20-kvo.m` строку `removeObserver:` — отпишись
+   дважды. Поймай падение и прочитай текст исключения `NSRangeException` —
+   потом узнаешь такую ошибку сразу. Затем убери обе отписки, а
+   наблюдателя `w` заверни в отдельную область видимости `{ ... }`, чтобы
+   он умер раньше `acc`, и поменяй баланс: придёт ли уведомление и упадёт
+   ли программа на твоей системе?
 
 ## Что мы получили
 
@@ -655,7 +708,7 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 своими глазами увидели механику главы 14: runtime создаёт динамический
 подкласс `NSKVONotifying_Account`, подменяет `isa` объекта и переопределяет
 сеттеры. Отсюда два правила KVO: менять только через сеттер (иначе
-изменение незаметно) и обязательно снимать наблюдателя (иначе крах).
+изменение незаметно) и снимать наблюдателя ровно один раз.
 
 В Си ничего подобного нет: там поле читается лишь по имени из исходника, а
 следить за переменной пришлось бы вручную в каждой точке кода. Здесь и
@@ -665,18 +718,22 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 
 ## Документация Apple
 
-- Key-Value Coding Programming Guide — developer.apple.com →
-  «Key-Value Coding Programming Guide» (Accessor Search Patterns,
-  Collection Operators, Key Paths).
-- Key-Value Observing Programming Guide — developer.apple.com →
-  «Key-Value Observing Programming Guide» (Registering, Receiving,
+- Key-Value Coding Programming Guide (архив Apple) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  KeyValueCoding/index.html (Accessor Search Patterns, Collection
+  Operators, Key Paths).
+- Key-Value Observing Programming Guide (архив Apple) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  KeyValueObserving/KeyValueObserving.html (Registering, Receiving,
   Manual Change Notification).
-- `NSKeyValueCoding` — developer.apple.com/documentation/objectivec/nsobject
+- `NSObject`, разделы Key-Value Coding и Key-Value Observing —
+  developer.apple.com/documentation/objectivec/nsobject-swift.class
   (`valueForKey:`, `setValue:forKey:`, `valueForKeyPath:`,
-  `valueForUndefinedKey:`, `+accessInstanceVariablesDirectly`).
-- `NSKeyValueObserving` — developer.apple.com/documentation/foundation/nskeyvalueobserving
-  (`addObserver:forKeyPath:options:context:`,
-  `observeValueForKeyPath:ofObject:change:context:`, `removeObserver:`,
-  `NSKeyValueObservingOptions`, `NSKeyValueChangeKey`).
-- `NSKeyValueObservation` — developer.apple.com/documentation/foundation/nskeyvalueobservation
-  (блочный наблюдатель современного KVO).
+  `addObserver:forKeyPath:options:context:`,
+  `observeValueForKeyPath:ofObject:change:context:`, `removeObserver:`).
+- `NSKeyValueObservingOptions` —
+  developer.apple.com/documentation/foundation/nskeyvalueobservingoptions
+- `NSKeyValueChangeKey` —
+  developer.apple.com/documentation/foundation/nskeyvaluechangekey
+- `NSKeyValueObservation` (только Swift) —
+  developer.apple.com/documentation/foundation/nskeyvalueobservation

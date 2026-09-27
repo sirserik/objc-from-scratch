@@ -10,7 +10,7 @@
 
 @implementation Speaker
 - (void)event:(NSString *)name {
-    NSLog(@"  %@ услышал событие: %@", self.label, name);
+    NSLog(@"  %@ получает событие: %@", self.label, name);
 }
 @end
 

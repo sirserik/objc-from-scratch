@@ -18,8 +18,9 @@
 - **Часть 4. Foundation.** Строки, числа, коллекции, даты/данные/URL,
   файлы и сериализация, KVC/KVO, многопоточность и run loop.
 - **Часть 5. Современный Objective-C** и взаимодействие со Swift.
-- **Приложения:** полная иерархия классов Foundation и шпаргалка
-  синтаксиса.
+- **Приложения:** A — иерархия классов Foundation, B — шпаргалка
+  синтаксиса, C–F — задачи с собеседований (гид, Junior, Middle,
+  Senior), G — Objective-C глазами C++-разработчика.
 
 ## Сборка
 
@@ -28,11 +29,12 @@
 
 ```sh
 make check   # скомпилировать все примеры из code/
-make pdf     # собрать PDF
-make all     # и то, и другое
+make pdf     # собрать PDF учебника
+make tasks   # собрать отдельный PDF с задачами собеседований
+make all     # всё сразу
 ```
 
-PDF: `Objective-C-s-nulya.pdf`.
+PDF: `Objective-C-s-nulya.pdf` и `Zadachi-s-sobesedovaniy-po-Objective-C.pdf`.
 
 ## Структура
 
@@ -41,6 +43,7 @@ docs/tutorial/*.md   — главы
 code/*.c             — примеры на чистом Си (вводные главы)
 code/*.m             — примеры на Objective-C (ARC + Foundation)
 code/*.mrr.m         — примеры без ARC (ручное управление памятью)
+code/*.cpp, *.mm     — C++ и Objective-C++ (приложение G)
 build/               — скрипты сборки, метаданные, style guide
 ```
 

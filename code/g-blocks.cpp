@@ -24,7 +24,9 @@ int main() {
 
     // Изменяемое состояние внутри лямбды требует mutable.
     auto counter = [n = 0]() mutable { return ++n; };
-    std::cout << "counter: " << counter() << counter() << counter() << "\n"; // 123
+    // Порядок вычисления слева направо у << гарантирован с C++17.
+    std::cout << "counter: " << counter() << counter() << counter()
+              << "\n";                                     // 123
 
     // Лямбду можно хранить в std::function и передавать.
     std::function<void(const std::string &)> greet =

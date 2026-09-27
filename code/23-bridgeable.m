@@ -5,7 +5,8 @@
    назначенный инициализатор, не-убегающий блок, метод с NSError**.
    Каждая аннотация делает Swift-сторону красивой и безопасной. */
 
-NS_ASSUME_NONNULL_BEGIN   /* всё ниже считается nonnull, кроме явного nullable */
+/* всё ниже считается nonnull, кроме явного nullable */
+NS_ASSUME_NONNULL_BEGIN
 
 /* Домен ошибок для checkout — в Swift станет частью брошенного Error. */
 static NSString *const CartErrorDomain = @"CartErrorDomain";
@@ -22,25 +23,28 @@ static NSString *const CartErrorDomain = @"CartErrorDomain";
 @property (nonatomic, copy, nullable) NSString *promoCode;
 
 /* назначенный инициализатор initWithOwner: -> в Swift init(owner:) */
-- (instancetype)initWithOwner:(NSString *)ownerName NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithOwner:(NSString *)ownerName
+    NS_DESIGNATED_INITIALIZER;
 
 /* запрещаем пустой init: в Swift его просто не будет видно */
 - (instancetype)init NS_UNAVAILABLE;
 
-/* nonnull-параметр -> в Swift add(_ item: String) без опционала */
+/* nonnull-параметр -> в Swift addItem(_ item: String) без опционала */
 - (void)addItem:(NSString *)item;
 
 /* nullable-возврат -> в Swift item(at:) -> String? */
 - (nullable NSString *)itemAtIndex:(NSUInteger)index;
 
 /* блок -> в Swift замыкание; NS_NOESCAPE -> не «убегающий»,
-   значит в Swift замыкание без @escaping и можно ссылаться на self без self. */
-- (void)enumerateItemsUsingBlock:(void (NS_NOESCAPE ^)(NSString *item,
-                                                       NSUInteger index))block;
+   значит в Swift замыкание без @escaping, и внутри можно не писать
+   self. перед свойствами и методами. */
+- (void)enumerateItemsUsingBlock:
+    (void (NS_NOESCAPE ^)(NSString *item, NSUInteger index))block;
 
 /* метод с последним параметром NSError** -> в Swift throws.
-   Возвращаемый nullable NSNumber превращается в НЕ-опциональный Decimal/NSNumber,
-   потому что «ошибка» теперь сигналится через throw, а не через nil. */
+   Возвращаемый nullable NSNumber превращается в НЕ-опциональный
+   NSNumber: об ошибке теперь сообщает throw, а не nil.
+   Имя в Swift: checkout(withPricePerItem:) throws -> NSNumber. */
 - (nullable NSNumber *)checkoutWithPricePerItem:(double)price
                                           error:(NSError **)error;
 

@@ -8,7 +8,7 @@
 Foundation даёт три готовых контейнера на все случаи: **NSArray**
 (упорядоченный список), **NSDictionary** (пары ключ→значение) и
 **NSSet** (набор уникальных элементов). У каждого есть изменяемый
-брат — `NSMutable…`. В этой главе разберём их по методам, а в конце
+брат — `NSMutable…`. Разберём их по методам, а в конце
 построим маленький учёт товаров: посчитаем продажи, выделим уникальные
 категории и составим рейтинг.
 
@@ -78,7 +78,8 @@ NSString *second = fruits[1];          /* субскрипт */
 - `objectAtIndex:` — взять элемент по номеру. **Нумерация с нуля**, как
   в Си: первый элемент — индекс 0.
 - `fruits[1]` — то же самое, но короче. Квадратные скобки с числом
-  компилятор разворачивает в вызов `objectAtIndex:`. Это **субскрипт**
+  компилятор разворачивает в вызов `objectAtIndexedSubscript:`, который
+  работает как `objectAtIndex:`. Это **субскрипт**
   (subscript), привычная по Си запись `arr[i]`.
 
 > **Отличие от Си.** Запись `fruits[1]` выглядит как сишный доступ к
@@ -174,10 +175,12 @@ NSMutableArray *big = [NSMutableArray arrayWithCapacity:100];
 
 ### nil класть нельзя
 
-Попытка `[cart addObject:nil]` — это краш с исключением. `nil` для
-коллекции означает «конец списка аргументов» и вообще «ничего», поэтому
-как значение он запрещён. Если по смыслу нужна «дырка» или «значение
-отсутствует» — клади объект-заглушку `NSNull`:
+Попытка `[cart addObject:nil]` — это краш с исключением (если `nil`
+написан прямо в коде, компилятор ещё и предупредит: `null passed to a
+callee that requires a non-null argument`). `nil` значит «объекта нет»,
+а в методах вроде `arrayWithObjects:` он ещё и служит концом списка
+аргументов, поэтому как значение он запрещён. Если по смыслу нужна
+«дырка» или «значение отсутствует» — клади объект-заглушку `NSNull`:
 
 ```objc
 [cart addObject:[NSNull null]];   /* законная «пустышка» */
@@ -339,6 +342,7 @@ NSLog(@"ключи: %@", [[colors allKeys] componentsJoinedByString:@", "]);
 NSMutableDictionary *stock = [[NSMutableDictionary alloc] init];
 [stock setObject:@10 forKey:@"яблоко"];   /* метод */
 stock[@"банан"] = @5;                       /* субскрипт-присваивание */
+stock[@"слива"] = @3;
 stock[@"яблоко"] = @12;                     /* тот же ключ → замена */
 [stock removeObjectForKey:@"слива"];        /* убрать пару */
 ```
@@ -403,10 +407,14 @@ for (NSString *fruit in colors) {
 банан → жёлтый
 слива → синий
 яблоко → красный
+склад: яблоко = 12 шт.
+склад: банан = 5 шт.
 ```
 
 Обрати внимание: порядок ключей в выводе не совпадает с порядком, в
 котором мы их писали в литерале. Это нормально — словарь неупорядочен.
+Последние две строки — это блочный обход `enumerateKeysAndObjectsUsingBlock:`
+по складу, где после довоза и списания осталось две позиции.
 
 ## NSSet: уникальные элементы без порядка
 
@@ -462,7 +470,9 @@ NSMutableSet *only = [cafeA mutableCopy];
 - `minusSet:` — выкинуть из первого всё, что встречается во втором.
 
 Эти методы меняют сам объект, поэтому мы каждый раз работаем с
-`mutableCopy`, чтобы не испортить исходный `cafeA`. И `addObject:` у
+копией: `mutableCopy` возвращает новую **изменяемую** копию коллекции
+(подробнее — в разделе про `copy` и `mutableCopy` ниже). Так исходный
+`cafeA` остаётся нетронутым. И `addObject:` у
 множества молча игнорирует дубликат — добавить «чай» второй раз ничего
 не изменит.
 
@@ -510,6 +520,9 @@ NSLog(@"первый в меню: %@", [menu firstObject]);
 элемента и говорит, кто раньше:
 
 ```objc
+NSArray *words = @[ @"груша", @"ёж", @"апельсин",
+                    @"кот", @"баклажан" ];
+
 NSArray *byLength = [words sortedArrayUsingComparator:
     ^NSComparisonResult(id a, id b) {
         NSUInteger la = [(NSString *)a length];
@@ -650,7 +663,7 @@ enumerated.'
 
 > **Отличие от Си.** В Си цикл по массиву ничего о «целостности
 > коллекции» не знает — удалишь элемент на ходу, и в лучшем случае
-> пропустишь сосед­ний, в худшем залезешь в чужую память без всякого
+> пропустишь соседний, в худшем залезешь в чужую память без всякого
 > предупреждения. `for-in` в Objective-C, наоборот, специально следит и
 > падает громко и сразу. Громкий краш лучше тихого повреждения.
 
@@ -695,7 +708,7 @@ for (NSInteger i = (NSInteger)[a count] - 1; i >= 0; i--) {
 2. узнать, сколько **разных** товаров продано;
 3. собрать **категории** проданного без повторов;
 4. составить рейтинг — от самого ходового к редкому;
-5. вычистить «однодневок» (товары, проданных меньше двух раз).
+5. вычистить «однодневок» (товары, проданные меньше двух раз).
 
 Здесь пригодятся все три контейнера: массив для журнала, словарь для
 подсчёта, множество для уникальных категорий.
@@ -784,7 +797,74 @@ for (NSString *item in toRemove) {
 
 ### Полная программа
 
-Весь код собран в `code/17-inventory.m`.
+Все пять шагов вместе — это файл `code/17-inventory.m`:
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        /* Журнал продаж за день: имена товаров, с повторами. */
+        NSArray *sales = @[ @"кофе", @"чай", @"кофе", @"кофе",
+                            @"сок", @"чай", @"кофе" ];
+        NSLog(@"всего продаж: %lu", (unsigned long)[sales count]);
+
+        /* Шаг 1. Подсчёт: имя товара → сколько раз продан. */
+        NSMutableDictionary *counts = [NSMutableDictionary dictionary];
+        for (NSString *item in sales) {
+            NSNumber *prev = counts[item];        /* nil, если впервые */
+            NSInteger n = prev ? [prev integerValue] : 0;
+            counts[item] = @(n + 1);
+        }
+        for (NSString *item in counts) {
+            NSLog(@"  %@: %@ шт.", item, counts[item]);
+        }
+
+        /* Шаг 2. Уникальные товары — это просто ключи словаря. */
+        NSSet *unique = [NSSet setWithArray:[counts allKeys]];
+        NSLog(@"разных товаров: %lu", (unsigned long)[unique count]);
+
+        /* Шаг 3. Категории проданного — множество без повторов. */
+        NSDictionary *category = @{
+            @"кофе" : @"горячее",
+            @"чай"  : @"горячее",
+            @"сок"  : @"холодное",
+        };
+        NSMutableSet *soldCats = [NSMutableSet set];
+        for (NSString *item in unique) {
+            [soldCats addObject:category[item]];
+        }
+        NSLog(@"категории: %@",
+              [[soldCats allObjects] componentsJoinedByString:@", "]);
+
+        /* Шаг 4. Рейтинг: ключи, отсортированные по убыванию продаж. */
+        NSArray *top = [[counts allKeys] sortedArrayUsingComparator:
+            ^NSComparisonResult(id a, id b) {
+                return [counts[b] compare:counts[a]];  /* по убыванию */
+            }];
+        NSLog(@"--- рейтинг ---");
+        for (NSString *item in top) {
+            NSLog(@"  %@ — %@", item, counts[item]);
+        }
+
+        /* Шаг 5. Убрать «однодневок» (продано < 2). Менять словарь
+           прямо в for-in нельзя — сначала собираем ключи, потом
+           удаляем отдельным проходом. */
+        NSMutableArray *toRemove = [NSMutableArray array];
+        for (NSString *item in counts) {
+            if ([counts[item] integerValue] < 2) {
+                [toRemove addObject:item];
+            }
+        }
+        for (NSString *item in toRemove) {
+            [counts removeObjectForKey:item];
+        }
+        NSLog(@"осталось ходовых: %@",
+              [[counts allKeys] componentsJoinedByString:@", "]);
+    }
+    return 0;
+}
+```
 
 ### Проверяем (учёт товаров)
 
@@ -819,9 +899,9 @@ clang -fobjc-arc -framework Foundation -Wall -Wextra -O2 \
 Чем три контейнера отличаются внутри:
 
 ```text
-NSArray       [0]→объект [1]→объект [2]→объект   порядок важен, повторы можно
-NSDictionary  hash(ключ) → корзина → значение    поиск по ключу, ключи уникальны
-NSSet         hash(объект) → «есть/нет»           только наличие, без порядка
+NSArray      [0]→объект [1]→объект [2]→объект  порядок важен, повторы можно
+NSDictionary hash(ключ) → корзина → значение   поиск по ключу, ключи уникальны
+NSSet        hash(объект) → «есть/нет»          только наличие, без порядка
 ```
 
 Массив — пронумерованные ячейки со ссылками на объекты. Словарь и
@@ -833,7 +913,8 @@ NSSet         hash(объект) → «есть/нет»           только 
 
 ## copy vs mutableCopy у коллекций
 
-Коллекции, как и строки (глава 8), отвечают на `copy` и `mutableCopy`:
+Коллекции, как и строки (про `copy` — глава 8), отвечают на `copy` и
+`mutableCopy`:
 
 - `copy` у коллекции возвращает **неизменяемую** версию (`NSArray`,
   `NSDictionary`, `NSSet`);
@@ -853,29 +934,32 @@ NSMutableArray *dup = [orig mutableCopy];
 
 Изменишь сам `person1` — изменение «видно» через оба массива, ведь это
 один объект. Добавишь объект в `dup` — `orig` не дрогнет, это разные
-контейнеры. Для словаря-ключей это безопасно (ключи и так копируются),
+контейнеры. Для ключей словаря это безопасно (ключи и так копируются),
 а вот за значениями и элементами помни: их разделяют, не дублируют.
-Если нужна **глубокая** копия (с дублированием элементов) — её делают
-отдельно, это тема для KVC/архивации (глава 19).
+Если нужна копия с дублированием элементов, есть
+`[[NSArray alloc] initWithArray:orig copyItems:YES]` — он пошлёт `copy`
+каждому элементу, но только на один уровень вглубь. Полную **глубокую**
+копию вложенных коллекций делают через архивацию (глава 19).
 
 ## Частые ошибки
 
-- **Положили `nil` в коллекцию.** `addObject:nil`, `setObject:nil
+- **Положил `nil` в коллекцию.** `addObject:nil`, `setObject:nil
   forKey:…` — мгновенный краш. Для «пусто» используй `[NSNull null]`.
-- **Меняете коллекцию в `for-in`.** `NSGenericException … was mutated
+- **Меняешь коллекцию в `for-in`.** `NSGenericException … was mutated
   while being enumerated`. Собирай изменения в отдельный список или иди
   по индексам с конца.
-- **Пробуете изменить immutable.** `[someNSArray addObject:…]` не
-  скомпилируется или упадёт — `NSArray` неизменяем. Нужен
-  `NSMutableArray`.
-- **Сравниваете элементы через `==`.** Поиск и членство в коллекциях
+- **Пробуешь изменить immutable.** `[someNSArray addObject:…]` не
+  скомпилируется (`no visible @interface for 'NSArray' declares the
+  selector 'addObject:'`), а если тип скрыт за `id` — упадёт при запуске.
+  `NSArray` неизменяем. Нужен `NSMutableArray`.
+- **Сравниваешь элементы через `==`.** Поиск и членство в коллекциях
   идут по `isEqual:`. Свой класс-элемент без правильного `isEqual:`/`hash`
   будет «не находиться» в множестве и словаре. Для строк/чисел всё уже
   сделано.
-- **Ждёте порядок от словаря или множества.** Они неупорядочены. Нужен
+- **Ждёшь порядок от словаря или множества.** Они неупорядочены. Нужен
   порядок — сортируй `allKeys`/`allObjects` или бери массив /
   `NSOrderedSet`.
-- **Печатаете кириллицу через `NSLog(@"%@", array)`.** Получишь
+- **Печатаешь кириллицу через `NSLog(@"%@", array)`.** Получишь
   `\U…`-коды. Для людей склеивай `componentsJoinedByString:`.
 
 ## Упражнения
@@ -905,8 +989,8 @@ NSMutableArray *dup = [orig mutableCopy];
 перебора. И ты увидел, что коллекции хранят только объекты, копируются
 поверхностно и не терпят `nil`.
 
-Дальше — глава 18 про даты, числа-через-форматтеры и `NSData`: как
-Foundation представляет время и сырые байты. А KVC, мелькнувший здесь в
+Дальше — глава 18 про даты, `NSData`, `NSURL` и `NSError`: как
+Foundation представляет время, сырые байты, адреса и ошибки. А KVC, мелькнувший здесь в
 `valueForKey:`, развернётся в полную силу в главе 20.
 
 ## Документация Apple
@@ -921,6 +1005,7 @@ Foundation представляет время и сырые байты. А KVC,
   developer.apple.com/documentation/foundation/nsorderedset
 - `NSPredicate` —
   developer.apple.com/documentation/foundation/nspredicate
-- Collections Programming Topics — developer.apple.com/library →
-  «Collections Programming Topics» (массивы, словари, множества,
-  быстрый перебор и предикаты одним обзором).
+- Collections Programming Topics (массивы, словари, множества,
+  быстрый перебор и предикаты одним обзором) —
+  developer.apple.com/library/archive/documentation/Cocoa/Conceptual/
+  Collections/Collections.html

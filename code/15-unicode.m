@@ -28,8 +28,10 @@ int main(void) {
               (unsigned long)[mix length]);
 
         __block NSUInteger humanCount = 0;
+        NSStringEnumerationOptions opts =
+            NSStringEnumerationByComposedCharacterSequences;
         [mix enumerateSubstringsInRange:NSMakeRange(0, [mix length])
-                                options:NSStringEnumerationByComposedCharacterSequences
+                                options:opts
                              usingBlock:^(NSString *sub,
                                           NSRange subRange,
                                           NSRange enclosing,

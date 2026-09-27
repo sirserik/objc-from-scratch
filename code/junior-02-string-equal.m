@@ -6,7 +6,9 @@
 int main(void) {
     @autoreleasepool {
         NSString *a = @"hello";
-        /* stringWithFormat: строит НОВЫЙ объект в куче с тем же текстом */
+        /* stringWithFormat: строит НОВЫЙ объект с тем же текстом
+           (короткую строку runtime упакует прямо в указатель —
+           tagged pointer, поэтому «адрес» b выглядит странно) */
         NSString *b = [NSString stringWithFormat:@"%@%@", @"hel", @"lo"];
 
         NSLog(@"a == b               : %d", (a == b));
